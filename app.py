@@ -139,7 +139,7 @@ if not barcos_ativos.empty:
         submit = st.form_submit_button("➕ Salvar e Próxima Peça", use_container_width=True)
 
         if submit:
-            if peso_input is note None and peso_input >= 5.0:
+            if peso_input is not None and peso_input >= 5.0:
                 categoria = classificar_faixa(peso_input)
                 cursor.execute("""
                     INSERT INTO pecas (id_descarga, numero_peca, peso_kg, categoria, segundo_furo, destino, data_registro)
