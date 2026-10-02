@@ -182,13 +182,3 @@ if not barcos_ativos.empty:
 else:
     st.info("Nenhuma descarga em andamento. Abra ou selecione uma descarga acima para iniciar os lançamentos.")
 
-# Encerramento do lote
-            with st.expander("⚠️ Concluir e Fechar Descarga"):
-                if st.button("🏁 Finalizar Operação deste Barco", type="primary", use_container_width=True):
-                    with conn:
-                        conn.execute("UPDATE descargas SET status = 'Finalizada' WHERE id = ?", (id_descarga,))
-                    st.session_state["id_descarga"] = None
-                    st.success("Descarga concluída com sucesso!")
-                    st.rerun()
-        else:
-            st.info("Aguardando registro da primeira peça.")
