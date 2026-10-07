@@ -3,11 +3,18 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 from PIL import Image
+import os
 
-logo = Image.open("logo.png")
+# --- 1. CARREGAMENTO DA IMAGEM COM PROTEÇÃO ---
+try:
+    logo = Image.open("logo.png") 
+except FileNotFoundError:
+    logo = "🐟"
+
+# --- 2. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="NAVIMAR PESCADOS", layout="centered", page_icon=logo)
 
-# --- IDENTIDADE VISUAL E CORES AQUÁTICAS ---
+# --- 3. IDENTIDADE VISUAL ---
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] {
@@ -34,216 +41,236 @@ st.markdown("""
         color: #E4D9C3;
         border: 2px solid #E4D9C3;
     }
-    /* Estilo para Tabela do Romaneio */
-    [data-testid="stDataFrame"] {
-        border: 2px solid #031523;
-        border-radius: 5px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# Conexão com o banco compartilhado
-@st.cache_resource
-def get_db():
-    conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    return conn
+# --- 4. CONEXÃO E CRIAÇÃO DA BASE DE DADOS (CRÍTICO PARA A NUVEM) ---
+conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
+cursor = conn.cursor()
 
-conn = get_db()
-
-st.page_link("app.py", label="Voltar para a Pesagem no Cais", icon="🐟")
-
-st.title("📊 Painel Gerencial & Romaneio")
-
-descargas = pd.read_sql("SELECT id, barco, proprietario, data_hora, status FROM descargas ORDER BY id DESC", conn)
-
-if descargas.empty:
-    st.info("Nenhuma descarga encontrada no banco de dados.")
-    st.stop()
-
-opcoes = {
-    row["id"]: f"Lote #{row['id']} - {row['barco']} ({row['status']}) | {row['data_hora'][:10]}"
-    for _, row in descargas.iterrows()
-}
-
-lote_selecionado = st.selectbox(
-    "Selecione o Lote / Embarcação:",
-    options=list(opcoes.keys()),
-    format_func=lambda x: opcoes[x]
+# Cria as tabelas ANTES de qualquer consulta do Pandas
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS descargas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    barco TEXT NOT NULL,
+    proprietario TEXT NOT NULL,
+    data_hora TEXT NOT NULL,
+    status TEXT DEFAULT 'Em Andamento'
 )
+""")
 
-# Consulta incluindo a nova coluna LOMBO e renomeando categoria para 'peso'
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS pecas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_descarga INTEGER,
+    numero_peca INTEGER,
+    peso_kg REAL,
+    categoria TEXT,
+    segundo_furo INTEGER,
+    lombo INTEGER,
+    destino TEXT,
+    data_registro TEXT,
+    FOREIGN KEY(id_descarga) REFERENCES descargas(id)
+)
+""")
+
+# Garante que a coluna 'lombo' exista caso o banco já existisse antes
 try:
-    query_analitica = """
-    SELECT 
-        d.id AS id_lote,
-        d.barco,
-        d.proprietario AS armador,
-        p.numero_peca,
-        p.peso_kg,
-        p.categoria AS peso,
-        CASE WHEN p.peso_kg >= 40.0 THEN 1 ELSE 0 END AS is_exportacao,
-        CASE WHEN p.segundo_furo = 1 THEN 'Sim' ELSE 'Não' END AS segundo_furo,
-        CASE WHEN p.lombo = 1 THEN 'Sim' ELSE 'Não' END AS lombo,
-        p.destino,
-        p.data_registro AS data_hora
-    FROM pecas p
-    JOIN descargas d ON d.id = p.id_descarga
-    WHERE p.id_descarga = ?
-    ORDER BY p.numero_peca ASC
-    """
-    df = pd.read_sql(query_analitica, conn, params=(int(lote_selecionado),))
-except:
-    # Fallback caso a tabela 'pecas' ainda não tenha a coluna 'lombo' por algum motivo
-    query_analitica_fallback = """
-    SELECT 
-        d.id AS id_lote,
-        d.barco,
-        d.proprietario AS armador,
-        p.numero_peca,
-        p.peso_kg,
-        p.categoria AS peso,
-        CASE WHEN p.peso_kg >= 40.0 THEN 1 ELSE 0 END AS is_exportacao,
-        CASE WHEN p.segundo_furo = 1 THEN 'Sim' ELSE 'Não' END AS segundo_furo,
-        'Não' AS lombo,
-        p.destino,
-        p.data_registro AS data_hora
-    FROM pecas p
-    JOIN descargas d ON d.id = p.id_descarga
-    WHERE p.id_descarga = ?
-    ORDER BY p.numero_peca ASC
-    """
-    df = pd.read_sql(query_analitica_fallback, conn, params=(int(lote_selecionado),))
+    cursor.execute("ALTER TABLE pecas ADD COLUMN lombo INTEGER DEFAULT 0")
+except sqlite3.OperationalError:
+    pass
 
-if df.empty:
-    st.warning("Este lote não possui peças registradas ainda.")
-    st.stop()
+conn.commit()
 
-# --- ABAS PARA SEPARAR VISÃO GERAL DO ROMANEIO (NOVO DASHBOARD) ---
-tab_gerencial, tab_romaneio = st.tabs(["📊 Visão Geral", "📄 Romaneio Oficial"])
 
-with tab_gerencial:
-    barco_nome = df["barco"].iloc[0]
-    armador_nome = df["armador"].iloc[0]
-    total_kg = df["peso_kg"].sum()
-    total_pecas = len(df)
-    peso_medio = df["peso_kg"].mean()
-    peso_export = df[df["is_exportacao"] == 1]["peso_kg"].sum()
-    perc_export = (peso_export / total_kg) * 100 if total_kg > 0 else 0
-    qtd_furo = (df["segundo_furo"] == "Sim").sum()
-    perc_furo = (qtd_furo / total_pecas) * 100 if total_pecas > 0 else 0
+# --- 5. LÓGICA DO APLICATIVO ---
+def classificar_faixa(peso):
+    if peso < 15.0:
+        return "< 15kg (Refugo/Local)"
+    elif 15.0 <= peso < 25.0:
+        return "15-24kg"
+    elif 25.0 <= peso < 40.0:
+        return "25-39kg"
+    else:
+        return "40+kg (Exportação)"
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Peso Total", f"{total_kg:,.1f} kg")
-    c2.metric("Total de Peças", f"{total_pecas}")
-    c3.metric("Peso Médio / Peça", f"{peso_medio:.2f} kg")
-    c4.metric("% Exportação (40+kg)", f"{perc_export:.1f}%", f"{perc_furo:.1f}% 2º furo", delta_color="inverse")
+st.title("🐟 NAVIMAR PESCADOS")
 
-    st.divider()
+barcos_ativos = pd.read_sql("SELECT id, barco, proprietario FROM descargas WHERE status = 'Em Andamento'", conn)
+descargas_concluidas = pd.read_sql("SELECT id, barco, proprietario, data_hora FROM descargas WHERE status = 'Concluída' ORDER BY id DESC", conn)
 
-    col_graf, col_tab = st.columns([1, 1])
+with st.expander("⚙ Gestão de Descargas / Selecionar Barco", expanded=barcos_ativos.empty):
+    tab1, tab2, tab3 = st.tabs(["Nova Descarga", "Descargas Ativas", "Histórico Concluído"])
+    
+    with tab1:
+        novo_barco = st.text_input("Nome da Embarcação:")
+        proprietario = st.text_input("Armador / Proprietário:")
+        if st.button("Iniciar Descarga", use_container_width=True):
+            if novo_barco and proprietario:
+                cursor.execute(
+                    "INSERT INTO descargas (barco, proprietario, data_hora) VALUES (?, ?, ?)",
+                    (novo_barco, proprietario, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                )
+                conn.commit()
+                st.success("Nova descarga iniciada com sucesso!")
+                st.rerun()
+            else:
+                st.warning("Por favor, preencha o nome da embarcação e o armador.")
+                
+    with tab2:
+        if not barcos_ativos.empty:
+            escolha = st.selectbox(
+                "Embarcação em operação:",
+                barcos_ativos["id"],
+                format_func=lambda x: f"{barcos_ativos.loc[barcos_ativos['id']==x, 'barco'].values[0]} ({barcos_ativos.loc[barcos_ativos['id']==x, 'proprietario'].values[0]})"
+            )
+            st.session_state["id_descarga"] = escolha
+        else:
+            st.info("Não existem descargas em andamento no momento.")
 
-    # Utilizando "peso" em vez de "calibre"
-    resumo_peso = df.groupby("peso").agg(
-        Pecas=("numero_peca", "count"),
-        Peso_Total_Kg=("peso_kg", "sum"),
-        Peso_Medio_Kg=("peso_kg", "mean"),
-        Com_2_Furo=("segundo_furo", lambda x: (x == "Sim").sum()),
-        Com_Lombo=("lombo", lambda x: (x == "Sim").sum())
-    ).reset_index()
-    resumo_peso["Part_%"] = (resumo_peso["Peso_Total_Kg"] / total_kg) * 100
+    with tab3:
+        if not descargas_concluidas.empty:
+            st.dataframe(descargas_concluidas, hide_index=True, use_container_width=True)
+        else:
+            st.info("Nenhuma descarga concluída registada.")
 
-    with col_graf:
-        st.subheader("Volume por Peso (Kg)")
-        peso_dist = df.groupby("peso")["peso_kg"].sum().reset_index()
-        st.bar_chart(peso_dist.set_index("peso"), use_container_width=True)
 
-    with col_tab:
-        st.subheader("Quadro Sintético de Fechamento")
+# --- OPERAÇÃO DA DESCARGA SELECIONADA ---
+if not barcos_ativos.empty:
+    id_descarga = st.session_state.get("id_descarga", barcos_ativos["id"].iloc[-1])
+    dados_barco = barcos_ativos[barcos_ativos["id"] == id_descarga].iloc[0]
+
+    df_pecas = pd.read_sql(f"SELECT * FROM pecas WHERE id_descarga = {id_descarga} ORDER BY id DESC", conn)
+    proxima_peca = len(df_pecas) + 1
+
+    st.subheader(f"Barco: {dados_barco['barco']}")
+    col_m1, col_m2 = st.columns(2)
+    col_m1.metric("Peças Registradas", f"{len(df_pecas)}")
+    col_m2.metric("Peso Total Acumulado", f"{df_pecas['peso_kg'].sum():,.1f} kg" if not df_pecas.empty else "0.0 kg")
+
+    st.markdown("---")
+
+    if "peso_counter" not in st.session_state:
+        st.session_state.peso_counter = 0
+    if "ultimo_destino" not in st.session_state:
+        st.session_state.ultimo_destino = "Caminhão"
+
+    # --- FORMULÁRIO DE ENTRADA ---
+    with st.form("form_pesagem", clear_on_submit=True):
+        st.write(f"### Peça Nº **{proxima_peca}**")
+
+        peso_input = st.number_input(
+            "Peso da Peça (kg):",
+            min_value=0.0,
+            max_value=350.0,
+            value=None,
+            step=0.5,
+            format="%.2f",
+            key=f"peso_input_{st.session_state.peso_counter}"
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            segundo_furo = st.checkbox("🚩 2º Furo")
+        with col2:
+            lombo = st.checkbox("🔪 Lombo")
+
+        destinos = ["Caminhão"]
+        idx_destino = destinos.index(st.session_state.ultimo_destino) if st.session_state.ultimo_destino in destinos else 0
+        destino = st.radio(
+            "Destino imediato:",
+            destinos,
+            index=idx_destino,
+            horizontal=True
+        )
+
+        submit = st.form_submit_button("➕ Salvar e Próxima Peça", use_container_width=True)
+
+        if submit:
+            if peso_input is not None and peso_input >= 5.0:
+                categoria = classificar_faixa(peso_input)
+                cursor.execute("""
+                    INSERT INTO pecas (id_descarga, numero_peca, peso_kg, categoria, segundo_furo, lombo, destino, data_registro)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    int(id_descarga),
+                    proxima_peca,
+                    peso_input,
+                    categoria,
+                    1 if segundo_furo else 0,
+                    1 if lombo else 0,
+                    destino,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ))
+                conn.commit()
+
+                st.session_state.ultimo_destino = destino
+                st.session_state.peso_counter += 1
+
+                st.toast(f"Peça #{proxima_peca} ({peso_input:.2f} kg) registrada!", icon="✅")
+                st.rerun()
+            else:
+                st.error("Informe um peso válido (mínimo de 5.0 kg).")
+
+    # --- HISTÓRICO RECENTE ---
+    if not df_pecas.empty:
+        st.write("#### Últimos Lançamentos")
         st.dataframe(
-            resumo_peso,
+            df_pecas[["numero_peca", "peso_kg", "categoria", "segundo_furo", "lombo", "destino"]].head(5),
             column_config={
-                "Peso_Total_Kg": st.column_config.NumberColumn(format="%.2f kg"),
-                "Peso_Medio_Kg": st.column_config.NumberColumn(format="%.2f kg"),
-                "Part_%": st.column_config.NumberColumn(format="%.1f%%")
+                "numero_peca": "Nº",
+                "peso_kg": st.column_config.NumberColumn("Peso (kg)", format="%.2f kg"),
+                "categoria": "Peso",
+                "segundo_furo": st.column_config.CheckboxColumn("2º Furo"),
+                "lombo": st.column_config.CheckboxColumn("Lombo"),
+                "destino": "Destino"
             },
             hide_index=True,
             use_container_width=True
         )
 
-with tab_romaneio:
-    st.subheader("Romaneio de Descarga")
-    
-    # Cabeçalho com Logo e Informações
-    col_img, col_info = st.columns([1, 3])
-    with col_img:
-        try:
-            st.image("image_2d6b5c.png", width=180)
-        except:
-            st.markdown("### NAVIMAR PESCADOS")
-    with col_info:
-        st.write(f"**BARCO:** {df['barco'].iloc[0]}")
-        st.write(f"**PROPRIETÁRIO:** {df['armador'].iloc[0]}")
-        st.write("**COMPRADOR:** NAVIMAR PESCADOS")
-        data_descarga = df['data_hora'].iloc[0][:10]
-        st.write(f"**DATA:** {datetime.strptime(data_descarga, '%Y-%m-%d').strftime('%d/%m/%Y')}")
+        if st.button("🗑️ Excluir Última Peça Inserida", type="secondary", use_container_width=True):
+            id_para_excluir = df_pecas.iloc[0]["id"]
+            cursor.execute("DELETE FROM pecas WHERE id = ?", (int(id_para_excluir),))
+            conn.commit()
+            st.warning(f"Peça #{df_pecas.iloc[0]['numero_peca']} removida com sucesso.")
+            st.rerun()
 
-    st.markdown("---")
-    st.write("### 💰 Tabela de Preços (Edite os valores em R$)")
+        st.markdown("---")
+        st.subheader("🏁 Conclusão da Descarga")
+        
+        with st.expander("Encerrar Lote e Gerar Balanço Final"):
+            st.write(f"Confirme o fecho da descarga do lote **{dados_barco['barco']}**.")
+            
+            total_kg = df_pecas["peso_kg"].sum()
+            total_pecas = len(df_pecas)
+            media_kg = total_kg / total_pecas if total_pecas > 0 else 0
+            qtd_furo = df_pecas["segundo_furo"].sum()
+            qtd_lombo = df_pecas["lombo"].sum() if "lombo" in df_pecas.columns else 0
 
-    # Campos de Edição para os Preços Baseados na Tabela Excel
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        preco_15_24 = st.number_input("R$ (15-24KG)", value=25.00, step=1.00)
-    with col2:
-        preco_25_39 = st.number_input("R$ (25-39KG)", value=29.00, step=1.00)
-    with col3:
-        preco_40 = st.number_input("R$ (40KG ACIMA)", value=32.00, step=1.00)
-    with col4:
-        preco_furo = st.number_input("R$ (2º FURO)", value=21.00, step=1.00)
-    with col5:
-        preco_lombo = st.number_input("R$ (LOMBO)", value=15.00, step=1.00)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Peças", total_pecas)
+            c2.metric("Total (kg)", f"{total_kg:,.1f} kg")
+            c3.metric("Média/Peça", f"{media_kg:,.1f} kg")
 
-    # Filtragem correta dos pesos conforme as categorias marcadas
-    df_furo = df[df["segundo_furo"] == "Sim"]
-    df_lombo = df[(df["lombo"] == "Sim") & (df["segundo_furo"] == "Não")]
-    df_normal = df[(df["segundo_furo"] == "Não") & (df["lombo"] == "Não")]
+            if qtd_furo > 0 or qtd_lombo > 0:
+                st.caption(f"⚠️ Peças com 2º Furo: **{qtd_furo}** | Peças como Lombo: **{qtd_lombo}**")
 
-    kg_15_24 = df_normal[df_normal["peso"] == "15-24kg"]["peso_kg"].sum()
-    kg_25_39 = df_normal[df_normal["peso"] == "25-39kg"]["peso_kg"].sum()
-    kg_40 = df_normal[df_normal["peso"] == "40+kg (Exportação)"]["peso_kg"].sum()
-    kg_furo = df_furo["peso_kg"].sum()
-    kg_lombo = df_lombo["peso_kg"].sum()
+            csv_data = df_pecas.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Descarregar Relatório (CSV)",
+                data=csv_data,
+                file_name=f"descarga_{dados_barco['barco']}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
-    # Cálculos Finais
-    total_15_24 = kg_15_24 * preco_15_24
-    total_25_39 = kg_25_39 * preco_25_39
-    total_40 = kg_40 * preco_40
-    total_furo = kg_furo * preco_furo
-    total_lombo = kg_lombo * preco_lombo
+            if st.button("✅ Concluir e Fechar Descarga", type="primary", use_container_width=True):
+                cursor.execute("UPDATE descargas SET status = 'Concluída' WHERE id = ?", (int(id_descarga),))
+                conn.commit()
+                st.success(f"Descarga de **{dados_barco['barco']}** finalizada e arquivada com sucesso!")
+                st.balloons()
+                st.rerun()
 
-    kg_geral = kg_15_24 + kg_25_39 + kg_40 + kg_furo + kg_lombo
-    total_geral = total_15_24 + total_25_39 + total_40 + total_furo + total_lombo
-
-    # Montando a Tabela do Romaneio (Modelo Excel)
-    romaneio_data = {
-        "TIPO (ATUM)": ["15KG - 24KG", "25KG - 39KG", "40KG ACIMA", "2º FURO", "LOMBO", "TOTAL"],
-        "KG": [kg_15_24, kg_25_39, kg_40, kg_furo, kg_lombo, kg_geral],
-        "PREÇO (R$)": [f"R$ {preco_15_24:.2f}", f"R$ {preco_25_39:.2f}", f"R$ {preco_40:.2f}", f"R$ {preco_furo:.2f}", f"R$ {preco_lombo:.2f}", "-"],
-        "TOTAL": [f"R$ {total_15_24:.2f}", f"R$ {total_25_39:.2f}", f"R$ {total_40:.2f}", f"R$ {total_furo:.2f}", f"R$ {total_lombo:.2f}", f"R$ {total_geral:.2f}"]
-    }
-
-    df_romaneio = pd.DataFrame(romaneio_data)
-
-    st.markdown("### 📄 Resultado do Romaneio")
-    st.dataframe(df_romaneio, use_container_width=True, hide_index=True)
-
-    # Botão para exportar no final
-    csv_romaneio = df_romaneio.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Baixar Romaneio do Barco (CSV)",
-        data=csv_romaneio,
-        file_name=f"romaneio_{df['barco'].iloc[0]}_{df['data_hora'].iloc[0][:10]}.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+else:
+    st.info("Nenhuma descarga em andamento. Abra uma nova descarga ou selecione um lote existente no menu acima.")
