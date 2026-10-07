@@ -18,7 +18,6 @@ try:
 except:
     logo = "🐟"
 
-# Função para converter a logo em texto e colocar no HTML
 def get_image_base64(path):
     try:
         with open(path, "rb") as f:
@@ -146,7 +145,6 @@ with tab_gerencial:
     perc_furo = (qtd_furo / total_pecas) * 100 if total_pecas > 0 else 0
     qtd_lombo = (df["lombo"] == "Sim").sum()
 
-    # Cards principais expandidos
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Peso Total", f"{total_kg:,.1f} kg")
     c2.metric("Total de Peças", f"{total_pecas}")
@@ -156,7 +154,6 @@ with tab_gerencial:
 
     st.divider()
 
-    # Gráficos de Visão Geral aprimorados
     col_graf1, col_graf2 = st.columns(2)
     
     with col_graf1:
@@ -181,7 +178,6 @@ with tab_gerencial:
 
     st.divider()
     
-    # Quadro Sintético
     st.subheader("Quadro Sintético de Fechamento por Categoria")
     resumo_peso = df.groupby("peso").agg(
         Pecas=("numero_peca", "count"),
@@ -202,6 +198,7 @@ with tab_gerencial:
         hide_index=True,
         use_container_width=True
     )
+
 
 with tab_romaneio:
     st.subheader("Romaneio de Descarga")
@@ -235,7 +232,6 @@ with tab_romaneio:
     with col5:
         preco_lombo = st.number_input("R$ (LOMBO)", value=15.00, step=1.00)
 
-    # Dicionário de preços para passar para as funções de exportação
     tabela_precos = {
         "15_24": preco_15_24, "25_39": preco_25_39,
         "40_up": preco_40, "furo": preco_furo, "lombo": preco_lombo
@@ -274,10 +270,9 @@ with tab_romaneio:
 
 
 # ==============================================================================
-# FUNÇÕES DE EXPORTAÇÃO (HTML e EXCEL) COM PREÇOS E LOGO
+# FUNÇÕES DE EXPORTAÇÃO (HTML e EXCEL)
 # ==============================================================================
 def gerar_dashboard_html(df_lote, df_resumo, df_financeiro, logo_b64_str):
-    # Gráficos
     fig_calibre = px.bar(
         df_resumo, x="peso", y="Peso_Total_Kg", text="Pecas", color="peso",
         title="Volume Total por Faixa de Peso (kg)", template="plotly_white",
@@ -288,7 +283,6 @@ def gerar_dashboard_html(df_lote, df_resumo, df_financeiro, logo_b64_str):
     
     html_fig1 = fig_calibre.to_html(full_html=False, include_plotlyjs="cdn")
 
-    # Construção da tabela financeira em HTML
     linhas_financeiro = ""
     for _, row in df_financeiro.iterrows():
         is_total = "font-weight: bold; background: #e2e8f0;" if row["TIPO (ATUM)"] == "TOTAL" else ""
@@ -301,7 +295,7 @@ def gerar_dashboard_html(df_lote, df_resumo, df_financeiro, logo_b64_str):
         </tr>
         """
 
-    img_tag = f'<img src="data:image/png;base64,{logo_b64_str}" style="max-height: 80px;">' if logo_b64_str else '<h2>NAVIMAR PESCADOS</h2>'
+    img_tag = f'<img src="data:image/png;base64,{logo_b64_str}" style="max-height: 120px;">' if logo_b64_str else '<h2>NAVIMAR PESCADOS</h2>'
 
     html_completo = f"""
     <!DOCTYPE html>
@@ -370,11 +364,15 @@ def gerar_excel_executivo(df_lote, precos, img_path):
         ws = workbook.add_worksheet("Planilha1")
         ws.hide_gridlines(2)
         
-        # Inserir Logo no Excel
+        # Aumentando a altura das primeiras 5 linhas para a imagem ter um espaço grande
+        for i in range(5):
+            ws.set_row(i, 28)
+            
+        # Inserir Logo no Excel com tamanho ampliado
         try:
             if os.path.exists(img_path):
-                # Scale ajustado para não ficar gigante na célula
-                ws.insert_image('A1', img_path, {'x_scale': 0.15, 'y_scale': 0.15})
+                # Escala bastante aumentada para cobrir o cabeçalho
+                ws.insert_image('B1', img_path, {'x_scale': 0.60, 'y_scale': 0.60, 'x_offset': 5, 'y_offset': 5})
         except:
             pass
         
@@ -384,27 +382,28 @@ def gerar_excel_executivo(df_lote, precos, img_path):
         fmt_tbl_num = workbook.add_format({"border": 1, "align": "center", "num_format": '#,##0.00'})
         fmt_tbl_moeda = workbook.add_format({"border": 1, "align": "center", "num_format": 'R$ #,##0.00'})
         
-        ws.set_column("A:A", 5) # Margem esq
+        ws.set_column("A:A", 3) # Margem esquerda pequena
         ws.set_column("B:B", 18)
         ws.set_column("C:E", 16)
         
-        # Deslocamos os dados para a linha 5 para a Logo ficar livre acima
-        ws.write("B6", "BARCO:", fmt_bold)
-        ws.write("C6", f" {barco}", fmt_bold)
-        ws.write("B7", "PROPRIETÁRIO:", fmt_bold)
-        ws.write("C7", f" {armador}", fmt_bold)
-        ws.write("B8", "COMANDANTE:", fmt_bold)
-        ws.write("C8", " ", fmt_bold)
-        ws.write("B9", "COMPRADOR:", fmt_bold)
-        ws.write("C9", " NAVIMAR PESCADOS", fmt_bold)
-        ws.write("B10", "DATA:", fmt_bold)
-        ws.write("C10", f" {data_formatada}", fmt_bold)
+        # O texto do cabeçalho agora começa na linha 7 (índice 6) para ficar abaixo da logo
+        linha_cab = 6
+        ws.write(linha_cab, 1, "BARCO:", fmt_bold)
+        ws.write(linha_cab, 2, f" {barco}", fmt_bold)
+        ws.write(linha_cab+1, 1, "PROPRIETÁRIO:", fmt_bold)
+        ws.write(linha_cab+1, 2, f" {armador}", fmt_bold)
+        ws.write(linha_cab+2, 1, "COMANDANTE:", fmt_bold)
+        ws.write(linha_cab+2, 2, " ", fmt_bold)
+        ws.write(linha_cab+3, 1, "COMPRADOR:", fmt_bold)
+        ws.write(linha_cab+3, 2, " NAVIMAR PESCADOS", fmt_bold)
+        ws.write(linha_cab+4, 1, "DATA:", fmt_bold)
+        ws.write(linha_cab+4, 2, f" {data_formatada}", fmt_bold)
         
+        linha_tabela = linha_cab + 6
         headers = ["TIPO (ATUM)", "KG", "PREÇO (R$)", "TOTAL"]
         for col_num, header in enumerate(headers, start=1):
-            ws.write(12, col_num, header, fmt_cabecalho_tbl)
+            ws.write(linha_tabela, col_num, header, fmt_cabecalho_tbl)
             
-        # Linhas de dados consumindo o dicionário de preços inseridos no App
         linhas_dados = [
             ("15KG - 24KG", kg_15_24, precos["15_24"]), 
             ("25KG - 39KG", kg_25_39, precos["25_39"]), 
@@ -413,18 +412,18 @@ def gerar_excel_executivo(df_lote, precos, img_path):
             ("LOMBO", kg_lombo_final, precos["lombo"])
         ]
         
-        linha_atual = 13
+        linha_atual = linha_tabela + 1
         for tipo, kg, preco in linhas_dados:
             ws.write(linha_atual, 1, tipo, fmt_tbl_texto)
             ws.write(linha_atual, 2, kg if kg > 0 else 0, fmt_tbl_num)
-            ws.write(linha_atual, 3, preco, fmt_tbl_moeda) # PREÇO AQUI!
+            ws.write(linha_atual, 3, preco, fmt_tbl_moeda) 
             ws.write_formula(linha_atual, 4, f"=C{linha_atual + 1}*D{linha_atual + 1}", fmt_tbl_moeda)
             linha_atual += 1
             
         ws.write(linha_atual, 1, "TOTAL", fmt_tbl_texto)
-        ws.write_formula(linha_atual, 2, f"=SUM(C14:C{linha_atual})", fmt_tbl_num)
+        ws.write_formula(linha_atual, 2, f"=SUM(C{linha_tabela+2}:C{linha_atual})", fmt_tbl_num)
         ws.write(linha_atual, 3, "-", fmt_tbl_texto)
-        ws.write_formula(linha_atual, 4, f"=SUM(E14:E{linha_atual})", fmt_tbl_moeda)
+        ws.write_formula(linha_atual, 4, f"=SUM(E{linha_tabela+2}:E{linha_atual})", fmt_tbl_moeda)
         
     return output.getvalue()
 
