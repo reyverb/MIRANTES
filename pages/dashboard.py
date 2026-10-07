@@ -9,7 +9,6 @@ import os
 
 # --- 1. CARREGAMENTO DA IMAGEM ---
 try:
-    # Ajuste do caminho da imagem para garantir que encontre estando dentro da pasta pages/
     img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logo.png")
     logo = Image.open(img_path)
 except FileNotFoundError:
@@ -40,7 +39,6 @@ st.markdown("""
     p, label, span {
         color: #031523 !important;
     }
-    /* CORREÇÃO DO MENU LATERAL: Garantindo que o texto do menu não fique escuro */
     [data-testid="stSidebarNav"] span {
         color: #EAF4F4 !important;
         font-weight: bold;
@@ -70,7 +68,6 @@ def get_db():
     conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
     cursor = conn.cursor()
-    # Garante a existência da tabela antes de prosseguir
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS descargas (
         id INTEGER PRIMARY KEY AUTOINCREMENT, barco TEXT NOT NULL,
@@ -103,7 +100,6 @@ lote_selecionado = st.selectbox(
     format_func=lambda x: opcoes[x]
 )
 
-# Consulta com proteção para a coluna lombo
 try:
     query_analitica = """
     SELECT 
@@ -270,7 +266,7 @@ with tab_romaneio:
 
 
 # ==============================================================================
-# OPÇÃO 1: GERADOR DE DASHBOARD HTML INTERATIVO (PLOTLY + CSS + FILTRO JS)
+# FUNÇÕES DE EXPORTAÇÃO (HTML e EXCEL)
 # ==============================================================================
 def gerar_dashboard_html(df_lote, df_resumo):
     fig_calibre = px.bar(
@@ -283,40 +279,4 @@ def gerar_dashboard_html(df_lote, df_resumo):
 
     df_destino = df_lote.groupby("destino")["peso_kg"].sum().reset_index()
     fig_destino = px.pie(
-        df_destino, names="destino", values="peso_kg", hole=0.45,
-        title="Divisão de Volume por Destino (kg)",
-        template="plotly_white", color_discrete_sequence=["#0f172a", "#0284c7"]
-    )
-    fig_destino.update_traces(textinfo="percent+label+value")
-    
-    html_fig1 = fig_calibre.to_html(full_html=False, include_plotlyjs="cdn")
-    html_fig2 = fig_destino.to_html(full_html=False, include_plotlyjs=False)
-
-    html_completo = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head><meta charset="UTF-8"><title>Relatório - Lote</title></head>
-    <body style="font-family: sans-serif; padding: 20px;">
-        <h2>Painel Gerencial - Lote</h2>
-        <div style="display: flex; gap: 20px;">
-            <div style="width: 50%;">{html_fig1}</div>
-            <div style="width: 50%;">{html_fig2}</div>
-        </div>
-    </body>
-    </html>
-    """
-    return html_completo.encode("utf-8")
-
-
-# ==============================================================================
-# OPÇÃO 2: NOVO EXCEL EXECUTIVO - SEGUINDO MODELO ANEXADO
-# ==============================================================================
-def gerar_excel_executivo(df_lote):
-    output = io.BytesIO()
-    
-    barco = str(df_lote["barco"].iloc[0]).upper()
-    armador = str(df_lote["armador"].iloc[0]).upper()
-    data_lote_str = df_lote["data_hora"].iloc[0][:10]
-    data_formatada = datetime.strptime(data_lote_str, '%Y-%m-%d').strftime('%d/%m/%Y')
-    
-    df_furo = df_lote[df_lote["segundo_furo"] == "
+        df_destino, names="destino", values="peso_kg", hole=0.45
