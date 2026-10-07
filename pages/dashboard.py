@@ -1298,10 +1298,8 @@ with tab_romaneio:
         hide_index=True,
         use_container_width=True,
     )
-
-
 # ============================================================
-# PDF - RELATÓRIO DE DESCARGA (NOVO LAYOUT NAVIMAR)
+# PDF - RELATÓRIO DE DESCARGA COM LOGO NAVIMAR
 # ============================================================
 
 def gerar_dashboard_pdf(
@@ -1310,10 +1308,16 @@ def gerar_dashboard_pdf(
     df_financeiro,
     logo_path,
 ):
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.colors import HexColor, white
     from io import BytesIO
+
+    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    # --------------------------------------------------------
+    # PALETA VISUAL NAVIMAR
+    # --------------------------------------------------------
 
     NAVY = HexColor("#0B2545")
     METAL = HexColor("#4F7CAC")
@@ -1322,11 +1326,146 @@ def gerar_dashboard_pdf(
     LIGHT = HexColor("#A3ABB7")
     SHADOW = HexColor("#E9EDF3")
     CARD = HexColor("#FFFFFF")
+    SOFT_BLUE = HexColor("#F1F6FA")
 
-    W, H = A4
-    m = 40
+    # --------------------------------------------------------
+    # FUNÇÕES AUXILIARES
+    # --------------------------------------------------------
+
+    def format_number(value):
+        """
+        Formata um número no padrão brasileiro:
+        2133.00 -> 2.133,00
+        """
+        return (
+            f"{float(value):,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+
+    def draw_rounded_card(
+        pdf_canvas,
+        x,
+        y,
+        width,
+        height,
+        radius=10,
+        fill_color=CARD,
+        border_color=LINE,
+        shadow=True,
+    ):
+        """
+        Desenha um card com sombra leve, cantos arredondados,
+        fundo branco e borda extremamente discreta.
+        """
+        if shadow:
+            pdf_canvas.setFillColor(SHADOW)
+            pdf_canvas.roundRect(
+                x + 1.5,
+                y - 2.5,
+                width,
+                height,
+                radius,
+                stroke=0,
+                fill=1,
+            )
+
+        pdf_canvas.setFillColor(fill_color)
+        pdf_canvas.setStrokeColor(border_color)
+        pdf_canvas.setLineWidth(0.6)
+        pdf_canvas.roundRect(
+            x,
+            y,
+            width,
+            height,
+            radius,
+            stroke=1,
+            fill=1,
+        )
+
+    def draw_logo_card(
+        pdf_canvas,
+        image_path,
+        x,
+        y,
+        card_width,
+        card_height,
+    ):
+        """
+        Insere a logo em um card, mantendo a proporção original.
+        A imagem usa comportamento equivalente a object-fit: contain:
+        mostra a marca inteira, sem distorcer e sem cortes.
+        """
+        draw_rounded_card(
+            pdf_canvas,
+            x=x,
+            y=y,
+            width=card_width,
+            height=card_height,
+            radius=10,
+            fill_color=CARD,
+            border_color=LINE,
+            shadow=True,
+        )
+
+        if not image_path or not Path(image_path).exists():
+            pdf_canvas.setFillColor(NAVY)
+            pdf_canvas.setFont("Helvetica-Bold", 15)
+            pdf_canvas.drawCentredString(
+                x + card_width / 2,
+                y + card_height / 2 - 5,
+                "NAVIMAR",
+            )
+            return
+
+        try:
+            image = ImageReader(str(image_path))
+            image_width, image_height = image.getSize()
+
+            padding = 8
+            available_width = card_width - 2 * padding
+            available_height = card_height - 2 * padding
+
+            scale = min(
+                available_width / image_width,
+                available_height / image_height,
+            )
+
+            draw_width = image_width * scale
+            draw_height = image_height * scale
+
+            draw_x = x + (card_width - draw_width) / 2
+            draw_y = y + (card_height - draw_height) / 2
+
+            pdf_canvas.drawImage(
+                image,
+                draw_x,
+                draw_y,
+                width=draw_width,
+                height=draw_height,
+                preserveAspectRatio=True,
+                mask="auto",
+            )
+
+        except Exception:
+            pdf_canvas.setFillColor(NAVY)
+            pdf_canvas.setFont("Helvetica-Bold", 15)
+            pdf_canvas.drawCentredString(
+                x + card_width / 2,
+                y + card_height / 2 - 5,
+                "NAVIMAR",
+            )
+
+    # --------------------------------------------------------
+    # PREPARAÇÃO DO DOCUMENTO
+    # --------------------------------------------------------
+
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+
+    page_width, page_height = A4
+    margin = 40
 
     barco = str(df_lote["barco"].iloc[0])
     armador = str(df_lote["armador"].iloc[0])
@@ -1334,132 +1473,304 @@ def gerar_dashboard_pdf(
 
     total_kg = float(df_lote["peso_kg"].sum())
     total_pecas = int(len(df_lote))
-    peso_medio = total_kg / total_pecas if total_pecas > 0 else 0
 
-    # ---------- CABEÇALHO ----------
-    c.setFillColor(NAVY)
-    c.setFont("Helvetica-Bold", 26)
-    c.drawString(m, H - m - 18, "NAVIMAR")
-    c.setFillColor(METAL)
-    c.rect(m, H - m - 27, 34, 2.5, stroke=0, fill=1)
+    peso_medio = (
+        total_kg / total_pecas
+        if total_pecas > 0
+        else 0
+    )
 
-    c.setFillColor(SLATE)
-    c.setFont("Helvetica", 8.5)
-    for i, t in enumerate([f"Barco: {barco}", f"Proprietário: {armador}", f"Data: {data_lote}"]):
-        c.drawRightString(W - m, H - m - 8 - i * 12, t)
+    # --------------------------------------------------------
+    # CABEÇALHO
+    # --------------------------------------------------------
 
-    c.setStrokeColor(LINE)
-    c.setLineWidth(0.8)
-    c.line(m, H - m - 42, W - m, H - m - 42)
+    header_top = page_height - margin
+    logo_card_width = 103
+    logo_card_height = 62
+    logo_card_y = header_top - logo_card_height
 
-    # ---------- TÍTULO ----------
-    c.setFillColor(NAVY)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(m, H - 130, "Relatório de Descarga")
+    draw_logo_card(
+        pdf_canvas=pdf,
+        image_path=logo_path,
+        x=margin,
+        y=logo_card_y,
+        card_width=logo_card_width,
+        card_height=logo_card_height,
+    )
 
-    # ---------- RESUMO OPERACIONAL (KPI CARDS) ----------
-    c.setFillColor(METAL)
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(m, H - 160, "RESUMO OPERACIONAL")
+    title_x = margin + logo_card_width + 18
 
-    gap = 14
-    cw = (W - 2 * m - 2 * gap) / 3
-    ch = 74
-    top = H - 176
+    pdf.setFillColor(NAVY)
+    pdf.setFont("Helvetica-Bold", 17)
+    pdf.drawString(
+        title_x,
+        header_top - 21,
+        "Relatório de Descarga",
+    )
 
-    for i, (lab, val) in enumerate([("PESO TOTAL", f"{total_kg:.1f} kg"),
-                                     ("PEÇAS", str(total_pecas)),
-                                     ("MÉDIA POR PEÇA", f"{peso_medio:.2f} kg")]):
-        x = m + i * (cw + gap)
-        y = top - ch
+    pdf.setFillColor(METAL)
+    pdf.setFont("Helvetica-Bold", 8)
+    pdf.drawString(
+        title_x,
+        header_top - 35,
+        "NAVIMAR PESCADOS",
+    )
 
-        # sombra suave
-        c.setFillColor(SHADOW)
-        c.roundRect(x + 1.5, y - 3, cw, ch, 10, stroke=0, fill=1)
-        c.setFillColor(HexColor("#F1F4F8"))
-        c.roundRect(x + 0.8, y - 1.5, cw, ch, 10, stroke=0, fill=1)
+    pdf.setFillColor(SLATE)
+    pdf.setFont("Helvetica", 8.5)
 
-        # cartão
-        c.setFillColor(CARD)
-        c.setStrokeColor(LINE)
-        c.setLineWidth(0.6)
-        c.roundRect(x, y, cw, ch, 10, stroke=1, fill=1)
+    metadata = [
+        f"Barco: {barco}",
+        f"Proprietário: {armador}",
+        f"Data: {data_lote}",
+    ]
 
-        # detalhe metálico
-        c.setFillColor(METAL)
-        c.roundRect(x + 14, y + ch - 14, 18, 2.5, 1, stroke=0, fill=1)
+    for index, item in enumerate(metadata):
+        pdf.drawRightString(
+            page_width - margin,
+            header_top - 17 - index * 13,
+            item,
+        )
 
-        # rótulo e valor
-        c.setFillColor(SLATE)
-        c.setFont("Helvetica", 7.5)
-        c.drawString(x + 14, y + ch - 28, lab)
-        c.setFillColor(NAVY)
-        c.setFont("Helvetica-Bold", 24)
-        c.drawString(x + 14, y + 16, val)
+    separator_y = logo_card_y - 14
 
-    # ---------- RESUMO COMERCIAL (TABELA) ----------
-    y = top - ch - 40
-    c.setFillColor(METAL)
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(m, y, "RESUMO COMERCIAL")
-    y -= 16
+    pdf.setStrokeColor(METAL)
+    pdf.setLineWidth(1.2)
+    pdf.line(
+        margin,
+        separator_y,
+        page_width - margin,
+        separator_y,
+    )
 
-    cols = [m + 4, m + 250, m + 365, W - m - 4]
-    c.setFillColor(SLATE)
-    c.setFont("Helvetica-Bold", 7.5)
-    c.drawString(cols[0], y, "TIPO (ATUM)")
-    c.drawRightString(cols[1], y, "KG")
-    c.drawRightString(cols[2], y, "PREÇO (R$)")
-    c.drawRightString(cols[3], y, "TOTAL")
+    # --------------------------------------------------------
+    # RESUMO OPERACIONAL
+    # --------------------------------------------------------
 
-    y -= 10
-    c.setStrokeColor(NAVY)
-    c.setLineWidth(0.9)
-    c.line(m, y, W - m, y)
+    section_y = separator_y - 30
 
-    rh = 30
+    pdf.setFillColor(METAL)
+    pdf.setFont("Helvetica-Bold", 8)
+    pdf.drawString(
+        margin,
+        section_y,
+        "RESUMO OPERACIONAL",
+    )
+
+    card_gap = 14
+    card_width = (
+        page_width
+        - (2 * margin)
+        - (2 * card_gap)
+    ) / 3
+    card_height = 76
+    cards_y = section_y - 92
+
+    kpis = [
+        ("PESO TOTAL", f"{total_kg:.1f} kg"),
+        ("PEÇAS", str(total_pecas)),
+        ("MÉDIA POR PEÇA", f"{peso_medio:.2f} kg"),
+    ]
+
+    for index, (label, value) in enumerate(kpis):
+        card_x = margin + index * (card_width + card_gap)
+
+        draw_rounded_card(
+            pdf_canvas=pdf,
+            x=card_x,
+            y=cards_y,
+            width=card_width,
+            height=card_height,
+            radius=10,
+            fill_color=CARD,
+            border_color=LINE,
+            shadow=True,
+        )
+
+        pdf.setFillColor(METAL)
+        pdf.roundRect(
+            card_x + 14,
+            cards_y + card_height - 15,
+            20,
+            2.5,
+            1,
+            stroke=0,
+            fill=1,
+        )
+
+        pdf.setFillColor(SLATE)
+        pdf.setFont("Helvetica-Bold", 7.5)
+        pdf.drawString(
+            card_x + 14,
+            cards_y + card_height - 30,
+            label,
+        )
+
+        pdf.setFillColor(NAVY)
+        pdf.setFont("Helvetica-Bold", 22)
+        pdf.drawString(
+            card_x + 14,
+            cards_y + 17,
+            value,
+        )
+
+    # --------------------------------------------------------
+    # RESUMO COMERCIAL
+    # --------------------------------------------------------
+
+    commercial_title_y = cards_y - 31
+
+    pdf.setFillColor(METAL)
+    pdf.setFont("Helvetica-Bold", 8)
+    pdf.drawString(
+        margin,
+        commercial_title_y,
+        "RESUMO COMERCIAL",
+    )
+
+    table_header_y = commercial_title_y - 19
+
+    col_tipo = margin + 4
+    col_kg = margin + 250
+    col_preco = margin + 365
+    col_total = page_width - margin - 4
+
+    pdf.setFillColor(SLATE)
+    pdf.setFont("Helvetica-Bold", 7.5)
+
+    pdf.drawString(col_tipo, table_header_y, "TIPO (ATUM)")
+    pdf.drawRightString(col_kg, table_header_y, "KG")
+    pdf.drawRightString(col_preco, table_header_y, "PREÇO (R$)")
+    pdf.drawRightString(col_total, table_header_y, "TOTAL")
+
+    table_line_y = table_header_y - 10
+
+    pdf.setStrokeColor(NAVY)
+    pdf.setLineWidth(0.9)
+    pdf.line(
+        margin,
+        table_line_y,
+        page_width - margin,
+        table_line_y,
+    )
+
+    current_y = table_line_y
+    row_height = 29
+
     for _, row in df_financeiro.iloc[:-1].iterrows():
-        tipo = row["TIPO (ATUM)"]
+        current_y -= row_height
+
+        tipo = str(row["TIPO (ATUM)"])
         kg = float(row["KG"])
         preco = float(row["PREÇO (R$)"])
-        tot = float(row["TOTAL"])
-        y -= rh
-        c.setFillColor(NAVY)
-        c.setFont("Helvetica-Bold", 9.5)
-        c.drawString(cols[0], y + 10, tipo)
+        total = float(row["TOTAL"])
 
-        c.setFont("Helvetica", 9.5)
-        c.setFillColor(SLATE)
-        c.drawRightString(cols[1], y + 10, f"{kg:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        c.drawRightString(cols[2], y + 10, f"{preco:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        c.drawRightString(cols[3], y + 10, f"R$ {tot:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        pdf.setFillColor(NAVY)
+        pdf.setFont("Helvetica-Bold", 9.3)
+        pdf.drawString(
+            col_tipo,
+            current_y + 10,
+            tipo,
+        )
 
-        c.setStrokeColor(LINE)
-        c.setLineWidth(0.5)
-        c.line(m, y, W - m, y)
+        pdf.setFillColor(SLATE)
+        pdf.setFont("Helvetica", 9.3)
 
-    # linha TOTAL destacada
+        pdf.drawRightString(
+            col_kg,
+            current_y + 10,
+            format_number(kg),
+        )
+
+        pdf.drawRightString(
+            col_preco,
+            current_y + 10,
+            format_number(preco),
+        )
+
+        pdf.drawRightString(
+            col_total,
+            current_y + 10,
+            f"R$ {format_number(total)}",
+        )
+
+        pdf.setStrokeColor(LINE)
+        pdf.setLineWidth(0.5)
+        pdf.line(
+            margin,
+            current_y,
+            page_width - margin,
+            current_y,
+        )
+
+    # --------------------------------------------------------
+    # LINHA TOTAL
+    # --------------------------------------------------------
+
     total_row = df_financeiro.iloc[-1]
-    y -= 8
-    th = 34
-    y -= th
-    c.setFillColor(NAVY)
-    c.roundRect(m, y, W - 2 * m, th, 6, stroke=0, fill=1)
-    c.setFillColor(white)
-    c.setFont("Helvetica-Bold", 10.5)
-    c.drawString(cols[0] + 6, y + 12, "TOTAL")
-    c.drawRightString(cols[1], y + 12, f"{float(total_row['KG']):.2f}".replace(".", ","))
-    c.drawRightString(cols[3] - 6, y + 12, ("R$ " + f"{float(total_row['TOTAL']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
 
-    # ---------- RODAPÉ ----------
-    c.setFillColor(LIGHT)
-    c.setFont("Helvetica", 7.5)
-    c.drawCentredString(W / 2, 28, "Documento gerado pelo sistema NAVIMAR PESCADOS.")
+    total_kg_financeiro = float(total_row["KG"])
+    total_valor = float(total_row["TOTAL"])
 
-    c.save()
+    total_y = current_y - 42
+    total_height = 34
+
+    pdf.setFillColor(NAVY)
+    pdf.roundRect(
+        margin,
+        total_y,
+        page_width - 2 * margin,
+        total_height,
+        7,
+        stroke=0,
+        fill=1,
+    )
+
+    pdf.setFillColor(white)
+    pdf.setFont("Helvetica-Bold", 10.5)
+
+    pdf.drawString(
+        col_tipo + 6,
+        total_y + 12,
+        "TOTAL",
+    )
+
+    pdf.drawRightString(
+        col_kg,
+        total_y + 12,
+        format_number(total_kg_financeiro),
+    )
+
+    pdf.drawRightString(
+        col_total - 6,
+        total_y + 12,
+        f"R$ {format_number(total_valor)}",
+    )
+
+    # --------------------------------------------------------
+    # RODAPÉ
+    # --------------------------------------------------------
+
+    pdf.setStrokeColor(LINE)
+    pdf.setLineWidth(0.6)
+    pdf.line(
+        margin,
+        43,
+        page_width - margin,
+        43,
+    )
+
+    pdf.setFillColor(LIGHT)
+    pdf.setFont("Helvetica", 7.5)
+    pdf.drawCentredString(
+        page_width / 2,
+        28,
+        "Documento gerado pelo sistema NAVIMAR PESCADOS.",
+    )
+
+    pdf.save()
+
     return buffer.getvalue()
-
-
 # ============================================================
 # EXCEL EXECUTIVO MODELO
 # ============================================================
