@@ -1,5 +1,4 @@
 from pathlib import Path
-import base64
 import io
 import sqlite3
 from datetime import datetime
@@ -11,7 +10,7 @@ from PIL import Image
 
 
 # ============================================================
-# CAMINHOS DO PROJETO
+# CAMINHOS
 # ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,19 +28,8 @@ except Exception:
     logo = None
 
 
-def get_image_base64(path):
-    try:
-        with open(path, "rb") as file:
-            return base64.b64encode(file.read()).decode("utf-8")
-    except Exception:
-        return ""
-
-
-logo_b64 = get_image_base64(LOGO_PATH)
-
-
 # ============================================================
-# CONFIGURAÇÃO
+# CONFIGURAÇÃO DA PÁGINA
 # ============================================================
 
 st.set_page_config(
@@ -53,7 +41,7 @@ st.set_page_config(
 
 
 # ============================================================
-# ESTILO VISUAL
+# CSS
 # ============================================================
 
 st.markdown(
@@ -149,12 +137,6 @@ st.markdown(
             font-size: 1.3rem;
             font-weight: 800;
             margin: 0.7rem 0 0.8rem 0;
-        }
-
-        .muted-text,
-        .help-text {
-            color: var(--muted) !important;
-            font-size: 0.88rem;
         }
 
         .lote-header {
@@ -334,7 +316,7 @@ st.markdown(
         }
 
         /* =====================================================
-           FILTROS SELECT E MULTISELECT
+           FILTROS
         ===================================================== */
 
         [data-baseweb="select"] > div {
@@ -402,10 +384,6 @@ st.markdown(
         [data-testid="stDataFrame"] iframe {
             background: #ffffff !important;
         }
-
-        /* =====================================================
-           REMOÇÃO DE EFEITOS DE FOCO
-        ===================================================== */
 
         button:focus,
         button:focus-visible,
@@ -517,10 +495,10 @@ def build_financial_dataframe(dataframe, prices):
         ("LOMBO", kg_lombo, prices["lombo"]),
     ]
 
-    financial_rows = []
+    result = []
 
     for category, kilograms, price in rows:
-        financial_rows.append(
+        result.append(
             {
                 "TIPO (ATUM)": category,
                 "KG": float(kilograms),
@@ -529,10 +507,10 @@ def build_financial_dataframe(dataframe, prices):
             }
         )
 
-    total_kg = sum(row["KG"] for row in financial_rows)
-    total_value = sum(row["TOTAL"] for row in financial_rows)
+    total_kg = sum(row["KG"] for row in result)
+    total_value = sum(row["TOTAL"] for row in result)
 
-    financial_rows.append(
+    result.append(
         {
             "TIPO (ATUM)": "TOTAL",
             "KG": total_kg,
@@ -541,7 +519,7 @@ def build_financial_dataframe(dataframe, prices):
         }
     )
 
-    return pd.DataFrame(financial_rows)
+    return pd.DataFrame(result)
 
 
 def get_database():
@@ -631,7 +609,7 @@ lote_selecionado = st.selectbox(
 
 
 # ============================================================
-# CONSULTA DAS PEÇAS
+# CONSULTA
 # ============================================================
 
 query_analitica = """
@@ -721,7 +699,7 @@ df = ensure_lombo_column(df)
 
 
 # ============================================================
-# INFORMAÇÕES DO LOTE
+# CABEÇALHO DO LOTE
 # ============================================================
 
 barco_nome = str(df["barco"].iloc[0])
@@ -841,7 +819,9 @@ with tab_gerencial:
 
     with chart_col1:
         st.markdown(
-            '<div class="section-title">📈 Evolução peça a peça</div>',
+            '<div class="section-title">'
+            '📈 Evolução peça a peça'
+            '</div>',
             unsafe_allow_html=True,
         )
 
@@ -917,7 +897,9 @@ with tab_gerencial:
 
     with chart_col2:
         st.markdown(
-            '<div class="section-title">🎯 Distribuição por destino</div>',
+            '<div class="section-title">'
+            '🎯 Distribuição por destino'
+            '</div>',
             unsafe_allow_html=True,
         )
 
@@ -987,7 +969,9 @@ with tab_gerencial:
     st.markdown("---")
 
     st.markdown(
-        '<div class="section-title">📦 Fechamento por categoria</div>',
+        '<div class="section-title">'
+        '📦 Fechamento por categoria'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -1056,7 +1040,9 @@ with tab_gerencial:
     st.markdown("---")
 
     st.markdown(
-        '<div class="section-title">🧾 Peças do lote</div>',
+        '<div class="section-title">'
+        '🧾 Peças do lote'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -1146,12 +1132,14 @@ with tab_gerencial:
 
 
 # ============================================================
-# ROMANEIO
+# ROMANEIO COMERCIAL
 # ============================================================
 
 with tab_romaneio:
     st.markdown(
-        '<div class="section-title">📄 Romaneio de descarga</div>',
+        '<div class="section-title">'
+        '📄 Romaneio de descarga'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -1162,7 +1150,9 @@ with tab_romaneio:
             st.image(logo, width=190)
         else:
             st.markdown(
-                '<div class="section-title">NAVIMAR PESCADOS</div>',
+                '<div class="section-title">'
+                'NAVIMAR PESCADOS'
+                '</div>',
                 unsafe_allow_html=True,
             )
 
@@ -1185,7 +1175,9 @@ with tab_romaneio:
     st.markdown("---")
 
     st.markdown(
-        '<div class="section-title">💰 Tabela de preços</div>',
+        '<div class="section-title">'
+        '💰 Tabela de preços'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -1278,7 +1270,9 @@ with tab_romaneio:
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
-        '<div class="section-title">Resultado do romaneio</div>',
+        '<div class="section-title">'
+        'Resultado do romaneio'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -1307,235 +1301,387 @@ with tab_romaneio:
 
 
 # ============================================================
-# EXPORTAÇÃO HTML
+# PDF
 # ============================================================
 
-def gerar_dashboard_html(
+def gerar_dashboard_pdf(
     df_lote,
     df_resumo,
     df_financeiro,
-    logo_b64_str,
+    logo_path,
 ):
-    fig_calibre = px.bar(
-        df_resumo,
-        x="peso",
-        y="Peso_Total_Kg",
-        text="Peso_Total_Kg",
-        color="peso",
-        title="Volume total por faixa de peso",
-        color_discrete_sequence=[
-            "#1479a8",
-            "#18a6a6",
-            "#d5a94f",
-            "#08263d",
-        ],
-        labels={
-            "peso": "Faixa de peso",
-            "Peso_Total_Kg": "Peso total (kg)",
-        },
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import (
+        ParagraphStyle,
+        getSampleStyleSheet,
+    )
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        Image as ReportImage,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
     )
 
-    fig_calibre.update_traces(
-        texttemplate="%{y:.1f} kg",
-        textposition="outside",
+    output = io.BytesIO()
+
+    barco = str(df_lote["barco"].iloc[0])
+    armador = str(df_lote["armador"].iloc[0])
+    data_lote = format_date(
+        df_lote["data_hora"].iloc[0]
     )
 
-    fig_calibre.update_layout(
-        template="plotly_white",
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#ffffff",
-        font=dict(
-            family="Inter, Arial, sans-serif",
-            color="#183243",
-        ),
-        title_font=dict(
-            color="#08263d",
-            size=18,
-        ),
-        showlegend=False,
-        height=420,
-        margin=dict(t=60, b=40, l=40, r=40),
+    total_kg = float(df_lote["peso_kg"].sum())
+    total_pecas = int(len(df_lote))
+
+    peso_medio = (
+        total_kg / total_pecas
+        if total_pecas > 0
+        else 0
     )
 
-    html_fig = fig_calibre.to_html(
-        full_html=False,
-        include_plotlyjs="cdn",
+    document = SimpleDocTemplate(
+        output,
+        pagesize=A4,
+        rightMargin=1.3 * cm,
+        leftMargin=1.3 * cm,
+        topMargin=1.1 * cm,
+        bottomMargin=1.1 * cm,
+        title=f"Relatório - {barco}",
+        author="NAVIMAR PESCADOS",
     )
 
-    rows_html = ""
+    styles = getSampleStyleSheet()
 
-    for _, row in df_financeiro.iterrows():
-        total_row = row["TIPO (ATUM)"] == "TOTAL"
+    title_style = ParagraphStyle(
+        "NavimarTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=18,
+        textColor=colors.HexColor("#08263d"),
+        spaceAfter=4,
+    )
 
-        style = (
-            "font-weight:800;background:#e7f4fa;"
-            if total_row
-            else ""
-        )
+    subtitle_style = ParagraphStyle(
+        "NavimarSubtitle",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#607786"),
+    )
 
-        rows_html += f"""
-            <tr style="{style}">
-                <td>{row["TIPO (ATUM)"]}</td>
-                <td style="text-align:right;">
-                    {row["KG"]:,.2f} kg
-                </td>
-                <td style="text-align:right;">
-                    R$ {row["PREÇO (R$)"]:,.2f}
-                </td>
-                <td style="text-align:right;">
-                    R$ {row["TOTAL"]:,.2f}
-                </td>
-            </tr>
-        """
+    section_style = ParagraphStyle(
+        "NavimarSection",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        textColor=colors.HexColor("#08263d"),
+        spaceBefore=10,
+        spaceAfter=7,
+    )
 
-    if logo_b64_str:
-        logo_tag = (
-            f'<img src="data:image/png;base64,{logo_b64_str}" '
-            'style="max-height:105px;max-width:220px;">'
+    story = []
+
+    if Path(logo_path).exists():
+        report_logo = ReportImage(
+            str(logo_path),
+            width=3.8 * cm,
+            height=1.5 * cm,
+            kind="proportional",
         )
     else:
-        logo_tag = "<h2>NAVIMAR PESCADOS</h2>"
+        report_logo = Paragraph(
+            "<b>NAVIMAR PESCADOS</b>",
+            title_style,
+        )
 
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>Relatório - {df_lote["barco"].iloc[0]}</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                background: #eaf4f4;
-                padding: 24px;
-                color: #183243;
-            }}
+    header_table = Table(
+        [
+            [
+                report_logo,
+                Paragraph(
+                    "<b>RELATÓRIO EXECUTIVO DE DESCARGA</b>",
+                    title_style,
+                ),
+            ],
+            [
+                "",
+                Paragraph(
+                    f"<b>Barco:</b> {barco}<br/>"
+                    f"<b>Proprietário:</b> {armador}<br/>"
+                    f"<b>Data:</b> {data_lote}",
+                    subtitle_style,
+                ),
+            ],
+        ],
+        colWidths=[5.0 * cm, 12.7 * cm],
+    )
 
-            .container {{
-                max-width: 1100px;
-                margin: auto;
-                background: #ffffff;
-                padding: 34px;
-                border-radius: 20px;
-                box-shadow: 0 12px 30px rgba(8, 38, 61, .12);
-            }}
+    header_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE",
+                ),
+                (
+                    "ALIGN",
+                    (1, 0),
+                    (1, -1),
+                    "RIGHT",
+                ),
+                (
+                    "LINEBELOW",
+                    (0, -1),
+                    (-1, -1),
+                    1.5,
+                    colors.HexColor("#1479a8"),
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+            ]
+        )
+    )
 
-            .header {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 20px;
-                border-bottom: 3px solid #1479a8;
-                padding-bottom: 22px;
-                margin-bottom: 28px;
-            }}
+    story.append(header_table)
+    story.append(Spacer(1, 0.4 * cm))
 
-            .header h1 {{
-                color: #08263d;
-                margin: 0 0 8px;
-                font-size: 25px;
-            }}
+    story.append(
+        Paragraph(
+            "Resumo operacional",
+            section_style,
+        )
+    )
 
-            .header p {{
-                margin: 4px 0;
-                color: #607786;
-            }}
+    summary_table = Table(
+        [
+            [
+                "Peso total",
+                "Peças",
+                "Média por peça",
+            ],
+            [
+                f"{total_kg:,.1f} kg",
+                f"{total_pecas}",
+                f"{peso_medio:,.2f} kg",
+            ],
+        ],
+        colWidths=[
+            5.9 * cm,
+            5.9 * cm,
+            5.9 * cm,
+        ],
+    )
 
-            .content {{
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 28px;
-            }}
+    summary_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.HexColor("#08263d"),
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.white,
+                ),
+                (
+                    "BACKGROUND",
+                    (0, 1),
+                    (-1, 1),
+                    colors.HexColor("#e7f4fa"),
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 1),
+                    (-1, 1),
+                    colors.HexColor("#08263d"),
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, -1),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "ALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "CENTER",
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.HexColor("#c9d9df"),
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+            ]
+        )
+    )
 
-            h2 {{
-                color: #08263d;
-                font-size: 19px;
-            }}
+    story.append(summary_table)
+    story.append(Spacer(1, 0.35 * cm))
 
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 14px;
-            }}
+    story.append(
+        Paragraph(
+            "Resumo comercial",
+            section_style,
+        )
+    )
 
-            th {{
-                background: #08263d;
-                color: white;
-                padding: 12px;
-                text-align: left;
-            }}
+    financial_data = [
+        [
+            "TIPO (ATUM)",
+            "KG",
+            "PREÇO (R$)",
+            "TOTAL",
+        ]
+    ]
 
-            td {{
-                padding: 12px;
-                border-bottom: 1px solid #d6e2e6;
-            }}
+    for _, row in df_financeiro.iterrows():
+        financial_data.append(
+            [
+                row["TIPO (ATUM)"],
+                f'{row["KG"]:,.2f}',
+                (
+                    "-"
+                    if row["TIPO (ATUM)"] == "TOTAL"
+                    else f'R$ {row["PREÇO (R$)"]:,.2f}'
+                ),
+                f'R$ {row["TOTAL"]:,.2f}',
+            ]
+        )
 
-            @media (max-width: 760px) {{
-                body {{
-                    padding: 10px;
-                }}
+    financial_table = Table(
+        financial_data,
+        colWidths=[
+            6.2 * cm,
+            3.3 * cm,
+            4.2 * cm,
+            4.0 * cm,
+        ],
+        repeatRows=1,
+    )
 
-                .container {{
-                    padding: 18px;
-                }}
+    financial_table.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.HexColor("#08263d"),
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.white,
+                ),
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "ALIGN",
+                    (1, 1),
+                    (-1, -1),
+                    "RIGHT",
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.HexColor("#c9d9df"),
+                ),
+                (
+                    "ROWBACKGROUNDS",
+                    (0, 1),
+                    (-1, -2),
+                    [
+                        colors.white,
+                        colors.HexColor("#f7fbfc"),
+                    ],
+                ),
+                (
+                    "BACKGROUND",
+                    (0, -1),
+                    (-1, -1),
+                    colors.HexColor("#e7f4fa"),
+                ),
+                (
+                    "FONTNAME",
+                    (0, -1),
+                    (-1, -1),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "TEXTCOLOR",
+                    (0, -1),
+                    (-1, -1),
+                    colors.HexColor("#08263d"),
+                ),
+                (
+                    "TOPPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8,
+                ),
+            ]
+        )
+    )
 
-                .header,
-                .content {{
-                    display: block;
-                }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <div>{logo_tag}</div>
-                <div style="text-align:right;">
-                    <h1>ROMANEIO DE DESCARGA</h1>
-                    <p>
-                        <strong>Barco:</strong>
-                        {df_lote["barco"].iloc[0]}
-                    </p>
-                    <p>
-                        <strong>Data:</strong>
-                        {format_date(df_lote["data_hora"].iloc[0])}
-                    </p>
-                </div>
-            </div>
+    story.append(financial_table)
+    story.append(Spacer(1, 0.4 * cm))
 
-            <div class="content">
-                <div>
-                    <h2>Resumo financeiro</h2>
+    story.append(
+        Paragraph(
+            "Documento gerado pelo sistema NAVIMAR PESCADOS.",
+            subtitle_style,
+        )
+    )
 
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Tipo</th>
-                                <th style="text-align:right;">KG</th>
-                                <th style="text-align:right;">Preço</th>
-                                <th style="text-align:right;">Total</th>
-                            </tr>
-                        </thead>
+    document.build(story)
 
-                        <tbody>
-                            {rows_html}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div>
-                    {html_fig}
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-
-    return html.encode("utf-8")
+    return output.getvalue()
 
 
 # ============================================================
-# EXPORTAÇÃO EXCEL
+# EXCEL EXECUTIVO MODELO
 # ============================================================
 
 def gerar_excel_executivo(
@@ -1568,19 +1714,28 @@ def gerar_excel_executivo(
     ) as writer:
         workbook = writer.book
         worksheet = workbook.add_worksheet(
-            "Romaneio"
+            "Planilha1"
         )
 
         worksheet.hide_gridlines(2)
 
+        worksheet.set_landscape()
+        worksheet.fit_to_pages(1, 1)
+        worksheet.set_margins(
+            left=0.25,
+            right=0.25,
+            top=0.35,
+            bottom=0.35,
+        )
+
         worksheet.set_column("A:A", 3)
         worksheet.set_column("B:B", 20)
-        worksheet.set_column("C:C", 24)
+        worksheet.set_column("C:C", 22)
         worksheet.set_column("D:D", 18)
         worksheet.set_column("E:E", 18)
 
-        for row in range(0, 8):
-            worksheet.set_row(row, 22)
+        for row in range(0, 15):
+            worksheet.set_row(row, 21)
 
         fmt_label = workbook.add_format(
             {
@@ -1588,6 +1743,7 @@ def gerar_excel_executivo(
                 "font_size": 11,
                 "font_color": "#08263d",
                 "valign": "vcenter",
+                "align": "left",
             }
         )
 
@@ -1597,6 +1753,7 @@ def gerar_excel_executivo(
                 "font_size": 11,
                 "font_color": "#183243",
                 "valign": "vcenter",
+                "align": "left",
             }
         )
 
@@ -1616,6 +1773,7 @@ def gerar_excel_executivo(
                 "border": 1,
                 "align": "center",
                 "font_color": "#183243",
+                "valign": "vcenter",
             }
         )
 
@@ -1623,6 +1781,7 @@ def gerar_excel_executivo(
             {
                 "border": 1,
                 "align": "center",
+                "font_color": "#183243",
                 "num_format": '#,##0.00 "kg"',
             }
         )
@@ -1631,6 +1790,7 @@ def gerar_excel_executivo(
             {
                 "border": 1,
                 "align": "center",
+                "font_color": "#183243",
                 "num_format": 'R$ #,##0.00',
             }
         )
@@ -1640,6 +1800,7 @@ def gerar_excel_executivo(
                 "border": 1,
                 "bold": True,
                 "bg_color": "#E7F4FA",
+                "font_color": "#08263d",
                 "align": "center",
             }
         )
@@ -1649,6 +1810,7 @@ def gerar_excel_executivo(
                 "border": 1,
                 "bold": True,
                 "bg_color": "#E7F4FA",
+                "font_color": "#08263d",
                 "align": "center",
                 "num_format": '#,##0.00 "kg"',
             }
@@ -1659,14 +1821,19 @@ def gerar_excel_executivo(
                 "border": 1,
                 "bold": True,
                 "bg_color": "#E7F4FA",
+                "font_color": "#08263d",
                 "align": "center",
                 "num_format": 'R$ #,##0.00',
             }
         )
 
-        start_row = 1
+        # ====================================================
+        # CABEÇALHO DO MODELO
+        # ====================================================
 
-        information = [
+        linha_cabecalho = 2
+
+        informacoes = [
             ("BARCO:", barco),
             ("PROPRIETÁRIO:", armador),
             ("COMANDANTE:", ""),
@@ -1675,38 +1842,44 @@ def gerar_excel_executivo(
         ]
 
         for offset, (label, value) in enumerate(
-            information
+            informacoes
         ):
             worksheet.write(
-                start_row + offset,
+                linha_cabecalho + offset,
                 1,
                 label,
                 fmt_label,
             )
 
             worksheet.write(
-                start_row + offset,
+                linha_cabecalho + offset,
                 2,
                 value,
                 fmt_value,
             )
 
+        # Logo fora da tabela, mantendo proporção
         try:
             if Path(image_path).exists():
                 worksheet.insert_image(
                     "E2",
                     str(image_path),
                     {
-                        "x_scale": 0.28,
-                        "y_scale": 0.28,
-                        "x_offset": 10,
-                        "y_offset": 2,
+                        "x_scale": 0.22,
+                        "y_scale": 0.22,
+                        "x_offset": 6,
+                        "y_offset": 4,
+                        "positioning": 2,
                     },
                 )
         except Exception:
             pass
 
-        table_row = start_row + 7
+        # ====================================================
+        # TABELA COM A MESMA ORGANIZAÇÃO DA PLANILHA MODELO
+        # ====================================================
+
+        linha_tabela = 8
 
         headers = [
             "TIPO (ATUM)",
@@ -1715,79 +1888,86 @@ def gerar_excel_executivo(
             "TOTAL",
         ]
 
-        for column, header in enumerate(
+        for coluna, header in enumerate(
             headers,
             start=1,
         ):
             worksheet.write(
-                table_row,
-                column,
+                linha_tabela,
+                coluna,
                 header,
                 fmt_header,
             )
 
-        data_row = table_row + 1
+        linha_dados = linha_tabela + 1
 
         for _, row in df_financeiro.iloc[:-1].iterrows():
             worksheet.write(
-                data_row,
+                linha_dados,
                 1,
                 row["TIPO (ATUM)"],
                 fmt_text,
             )
 
             worksheet.write(
-                data_row,
+                linha_dados,
                 2,
                 float(row["KG"]),
                 fmt_number,
             )
 
             worksheet.write(
-                data_row,
+                linha_dados,
                 3,
                 float(row["PREÇO (R$)"]),
                 fmt_money,
             )
 
-            worksheet.write(
-                data_row,
+            worksheet.write_formula(
+                linha_dados,
                 4,
-                float(row["TOTAL"]),
+                f"=C{linha_dados + 1}*D{linha_dados + 1}",
                 fmt_money,
             )
 
-            data_row += 1
+            linha_dados += 1
 
-        total_row = data_row
+        linha_total = linha_dados
         total = df_financeiro.iloc[-1]
 
         worksheet.write(
-            total_row,
+            linha_total,
             1,
             "TOTAL",
             fmt_total_text,
         )
 
         worksheet.write(
-            total_row,
+            linha_total,
             2,
             float(total["KG"]),
             fmt_total_number,
         )
 
         worksheet.write(
-            total_row,
+            linha_total,
             3,
             "-",
             fmt_total_text,
         )
 
-        worksheet.write(
-            total_row,
+        worksheet.write_formula(
+            linha_total,
             4,
-            float(total["TOTAL"]),
+            f"=SUM(E{linha_tabela + 2}:E{linha_total})",
             fmt_total_money,
+        )
+
+        worksheet.print_area(
+            0,
+            0,
+            linha_total,
+            4,
         )
 
     return output.getvalue()
@@ -1809,28 +1989,28 @@ st.markdown(
 export_col1, export_col2, export_col3 = st.columns(3)
 
 with export_col1:
-    html_bytes = gerar_dashboard_html(
-        df,
-        resumo_peso,
-        df_romaneio,
-        logo_b64,
+    pdf_bytes = gerar_dashboard_pdf(
+        df_lote=df,
+        df_resumo=resumo_peso,
+        df_financeiro=df_romaneio,
+        logo_path=LOGO_PATH,
     )
 
     st.download_button(
-        label="🌐 Dashboard interativo · HTML",
-        data=html_bytes,
+        label="📄 Relatório executivo · PDF",
+        data=pdf_bytes,
         file_name=(
-            f"dashboard_lote_{barco_nome}.html"
+            f"dashboard_lote_{barco_nome}.pdf"
         ),
-        mime="text/html",
+        mime="application/pdf",
         use_container_width=True,
     )
 
 with export_col2:
     excel_bytes = gerar_excel_executivo(
-        df,
-        tabela_precos,
-        LOGO_PATH,
+        df_lote=df,
+        prices=tabela_precos,
+        image_path=LOGO_PATH,
     )
 
     st.download_button(
