@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import sqlite3
 from datetime import datetime
 
@@ -8,18 +8,32 @@ from PIL import Image
 
 
 # ============================================================
-# CONFIGURAÇÃO DA PÁGINA
+# CONFIGURAÇÃO DE CAMINHOS
+# ============================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+LOGO_PATH = BASE_DIR / "logo.png"
+DATABASE_PATH = BASE_DIR / "porto_atum.db"
+
+
+# ============================================================
+# CARREGAMENTO SEGURO DA LOGO
 # ============================================================
 
 try:
-    logo = Image.open("logo.png")
-except FileNotFoundError:
-    logo = "🐟"
+    logo = Image.open(LOGO_PATH)
+except Exception:
+    logo = None
+
+
+# ============================================================
+# CONFIGURAÇÃO DA PÁGINA
+# ============================================================
 
 st.set_page_config(
     page_title="NAVIMAR PESCADOS",
     layout="wide",
-    page_icon=logo,
+    page_icon=logo if logo is not None else "⚓",
     initial_sidebar_state="collapsed",
 )
 
@@ -37,26 +51,35 @@ st.markdown(
             --navy: #08263d;
             --navy-dark: #041827;
             --blue: #1479a8;
-            --blue-light: #e7f4fa;
+            --blue-dark: #0b587d;
             --aqua: #18a6a6;
+            --blue-light: #e7f4fa;
             --cream: #f7f4ed;
             --gold: #d5a94f;
             --text: #183243;
             --muted: #607786;
             --border: #c9d9df;
             --white: #ffffff;
-            --danger: #b42318;
             --success: #087443;
+            --danger: #b42318;
         }
 
         html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
+            font-family: "Inter", sans-serif;
         }
 
         .stApp {
             background:
-                radial-gradient(circle at top right, rgba(20, 121, 168, 0.10), transparent 30%),
-                linear-gradient(180deg, #f6fbfc 0%, #eaf4f4 100%);
+                radial-gradient(
+                    circle at top right,
+                    rgba(20, 121, 168, 0.10),
+                    transparent 30%
+                ),
+                linear-gradient(
+                    180deg,
+                    #f6fbfc 0%,
+                    #eaf4f4 100%
+                );
             color: var(--text);
         }
 
@@ -65,11 +88,15 @@ st.markdown(
         }
 
         [data-testid="stHeader"] {
-            background: rgba(255, 255, 255, 0.78);
+            background: rgba(255, 255, 255, 0.82);
         }
 
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, var(--navy-dark), var(--navy));
+            background: linear-gradient(
+                180deg,
+                var(--navy-dark),
+                var(--navy)
+            );
         }
 
         [data-testid="stSidebar"] * {
@@ -78,8 +105,8 @@ st.markdown(
 
         h1, h2, h3, h4, h5, h6 {
             color: var(--navy) !important;
-            letter-spacing: -0.02em;
             font-weight: 800 !important;
+            letter-spacing: -0.03em;
         }
 
         p, label, span, div {
@@ -88,7 +115,7 @@ st.markdown(
 
         .block-container {
             max-width: 1380px;
-            padding-top: 2rem;
+            padding-top: 1.7rem;
             padding-bottom: 3rem;
         }
 
@@ -96,12 +123,12 @@ st.markdown(
             color: var(--navy);
             font-size: clamp(2rem, 4vw, 3.1rem);
             font-weight: 800;
-            letter-spacing: -0.05em;
+            letter-spacing: -0.055em;
             margin-bottom: 0.15rem;
         }
 
         .page-subtitle {
-            color: var(--muted);
+            color: var(--muted) !important;
             font-size: 1rem;
             margin-bottom: 1.5rem;
         }
@@ -110,55 +137,106 @@ st.markdown(
             color: var(--navy);
             font-size: 1.35rem;
             font-weight: 800;
-            margin-top: 0.6rem;
-            margin-bottom: 0.7rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0.75rem;
         }
 
-        .status-pill {
-            display: inline-flex;
+        .logo-container {
+            display: flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.42rem 0.75rem;
-            border-radius: 999px;
-            background: #e4f6ed;
-            color: var(--success) !important;
-            border: 1px solid #acdcbf;
-            font-size: 0.82rem;
-            font-weight: 700;
+            gap: 0.9rem;
+            margin-bottom: 0.25rem;
         }
 
-        .metric-card {
-            background: rgba(255, 255, 255, 0.92);
-            border: 1px solid var(--border);
-            border-left: 5px solid var(--blue);
+        .logo-fallback {
+            width: 72px;
+            height: 72px;
             border-radius: 16px;
-            padding: 1rem 1.1rem;
-            box-shadow: 0 8px 24px rgba(8, 38, 61, 0.08);
-            min-height: 105px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: var(--navy);
+            color: #ffffff !important;
+            font-size: 2rem;
         }
 
-        .metric-label {
-            color: var(--muted) !important;
-            font-size: 0.82rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
+        /* =====================================================
+           EXPANDER
+        ===================================================== */
 
-        .metric-value {
-            color: var(--navy) !important;
-            font-size: 1.65rem;
-            font-weight: 800;
-            margin-top: 0.35rem;
-        }
-
-        .input-card {
-            background: rgba(255, 255, 255, 0.96);
+        [data-testid="stExpander"] {
+            background: rgba(255, 255, 255, 0.86);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 1.25rem;
-            box-shadow: 0 10px 28px rgba(8, 38, 61, 0.08);
+            border-radius: 14px;
+            overflow: hidden;
         }
+
+        [data-testid="stExpander"] details summary {
+            background: var(--navy) !important;
+            color: #ffffff !important;
+            min-height: 2.9rem;
+            border-radius: 13px 13px 0 0 !important;
+        }
+
+        [data-testid="stExpander"] details summary:hover {
+            background: var(--blue) !important;
+        }
+
+        [data-testid="stExpander"] details summary p,
+        [data-testid="stExpander"] details summary span,
+        [data-testid="stExpander"] details summary svg {
+            color: #ffffff !important;
+            fill: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        [data-testid="stExpander"] details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* =====================================================
+           ABAS
+        ===================================================== */
+
+        .stTabs [data-baseweb="tab-list"] {
+            display: flex;
+            gap: 0.45rem;
+            background: #eef5f7;
+            border: 1px solid var(--border);
+            padding: 0.35rem;
+            border-radius: 12px;
+            box-shadow: none !important;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            height: 2.55rem;
+            padding: 0 1rem;
+            border-radius: 9px;
+            background: transparent !important;
+            color: #365466 !important;
+            font-weight: 700 !important;
+            box-shadow: none !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #dcecf2 !important;
+            color: var(--navy) !important;
+        }
+
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            background: var(--blue) !important;
+            color: #ffffff !important;
+            box-shadow: 0 3px 8px rgba(20, 121, 168, 0.25) !important;
+        }
+
+        .stTabs [data-baseweb="tab-highlight"],
+        .stTabs [data-baseweb="tab-border"] {
+            display: none !important;
+        }
+
+        /* =====================================================
+           CAMPOS
+        ===================================================== */
 
         .stTextInput > div > div,
         .stNumberInput > div > div,
@@ -172,7 +250,7 @@ st.markdown(
         .stTextInput input,
         .stNumberInput input,
         .stTextArea textarea {
-            color: #102b3d !important;
+            color: var(--text) !important;
             background-color: #ffffff !important;
             font-weight: 600 !important;
         }
@@ -183,43 +261,66 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        .stNumberInput input:focus,
-        .stTextInput input:focus {
+        .stTextInput input:focus,
+        .stNumberInput input:focus {
             border-color: var(--blue) !important;
             box-shadow: 0 0 0 2px rgba(20, 121, 168, 0.16) !important;
         }
 
+        /* =====================================================
+           BOTÕES
+        ===================================================== */
+
         .stButton > button,
-        .stFormSubmitButton > button {
+        .stFormSubmitButton > button,
+        .stDownloadButton > button {
             min-height: 2.8rem;
             border-radius: 10px;
-            border: 1px solid var(--navy);
-            background: var(--navy);
-            color: #ffffff !important;
-            font-weight: 700;
+            font-weight: 800;
             transition: all 0.18s ease;
         }
 
-        .stButton > button:hover,
-        .stFormSubmitButton > button:hover {
-            background: var(--blue);
-            border-color: var(--blue);
+        .stButton > button {
+            background: var(--navy);
             color: #ffffff !important;
+            border: 1px solid var(--navy);
+        }
+
+        .stButton > button:hover {
+            background: var(--blue);
+            color: #ffffff !important;
+            border-color: var(--blue);
             transform: translateY(-1px);
             box-shadow: 0 6px 16px rgba(20, 121, 168, 0.25);
         }
 
-        [data-testid="stFormSubmitButton"] button {
-            background: linear-gradient(135deg, var(--aqua), var(--blue));
-            border: none;
+        .stButton > button[kind="primary"],
+        .stFormSubmitButton > button {
+            background: linear-gradient(
+                135deg,
+                var(--blue),
+                var(--blue-dark)
+            ) !important;
+            color: #ffffff !important;
+            border: 1px solid var(--blue-dark) !important;
+            font-weight: 800 !important;
+        }
+
+        .stButton > button[kind="primary"]:hover,
+        .stFormSubmitButton > button:hover {
+            background: linear-gradient(
+                135deg,
+                var(--aqua),
+                var(--blue)
+            ) !important;
+            color: #ffffff !important;
+            border-color: var(--blue) !important;
         }
 
         .stDownloadButton > button {
-            border-radius: 10px;
             background: var(--cream);
             border: 1px solid var(--gold);
             color: var(--navy) !important;
-            font-weight: 700;
         }
 
         .stDownloadButton > button:hover {
@@ -227,29 +328,64 @@ st.markdown(
             border-color: var(--gold);
         }
 
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 0.45rem;
-            background: rgba(255, 255, 255, 0.75);
-            padding: 0.4rem;
-            border-radius: 12px;
-        }
+        /* =====================================================
+           CARTÕES DE MÉTRICAS
+        ===================================================== */
 
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 9px;
-            color: var(--muted);
-            font-weight: 700;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background: var(--navy) !important;
-            color: #ffffff !important;
-        }
-
-        .stExpander {
-            background: rgba(255, 255, 255, 0.78);
+        .metric-card {
+            background: rgba(255, 255, 255, 0.95);
             border: 1px solid var(--border);
-            border-radius: 14px;
-            overflow: hidden;
+            border-left: 5px solid var(--blue);
+            border-radius: 16px;
+            padding: 1rem 1.1rem;
+            min-height: 105px;
+            box-shadow: 0 8px 24px rgba(8, 38, 61, 0.08);
+        }
+
+        .metric-label {
+            color: var(--muted) !important;
+            font-size: 0.8rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric-value {
+            color: var(--navy) !important;
+            font-size: 1.65rem;
+            font-weight: 800;
+            margin-top: 0.35rem;
+        }
+
+        /* =====================================================
+           CARTÃO DE FORMULÁRIO
+        ===================================================== */
+
+        .input-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1.25rem;
+            box-shadow: 0 10px 28px rgba(8, 38, 61, 0.08);
+        }
+
+        .help-text {
+            color: var(--muted) !important;
+            font-size: 0.86rem;
+            margin-top: -0.25rem;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.42rem 0.75rem;
+            border-radius: 999px;
+            background: #e4f6ed;
+            color: var(--success) !important;
+            border: 1px solid #acdcbf;
+            font-size: 0.82rem;
+            font-weight: 800;
         }
 
         [data-testid="stDataFrame"] {
@@ -268,10 +404,21 @@ st.markdown(
             margin: 1.5rem 0;
         }
 
-        .help-text {
-            color: var(--muted) !important;
-            font-size: 0.86rem;
-            margin-top: -0.25rem;
+        /* =====================================================
+           REMOÇÃO DO BORRÃO DE FOCO
+        ===================================================== */
+
+        button:focus,
+        button:focus-visible,
+        [data-baseweb="tab"]:focus,
+        [data-baseweb="tab"]:focus-visible {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+        [data-baseweb="tab-list"]::after,
+        [data-baseweb="tab-list"]::before {
+            display: none !important;
         }
 
         @media (max-width: 768px) {
@@ -295,47 +442,60 @@ st.markdown(
 
 
 # ============================================================
-# BANCO DE DADOS
+# CONEXÃO E CRIAÇÃO DO BANCO
 # ============================================================
 
-conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
+@st.cache_resource
+def get_database():
+    connection = sqlite3.connect(
+        DATABASE_PATH,
+        check_same_thread=False,
+    )
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS descargas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            barco TEXT NOT NULL,
+            proprietario TEXT NOT NULL,
+            data_hora TEXT NOT NULL,
+            status TEXT DEFAULT 'Em Andamento'
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pecas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_descarga INTEGER,
+            numero_peca INTEGER,
+            peso_kg REAL,
+            categoria TEXT,
+            segundo_furo INTEGER,
+            lombo INTEGER,
+            destino TEXT,
+            data_registro TEXT,
+            FOREIGN KEY(id_descarga) REFERENCES descargas(id)
+        )
+        """
+    )
+
+    try:
+        cursor.execute(
+            "ALTER TABLE pecas ADD COLUMN lombo INTEGER DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        pass
+
+    connection.commit()
+    return connection
+
+
+conn = get_database()
 cursor = conn.cursor()
-
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS descargas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        barco TEXT NOT NULL,
-        proprietario TEXT NOT NULL,
-        data_hora TEXT NOT NULL,
-        status TEXT DEFAULT 'Em Andamento'
-    )
-    """
-)
-
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS pecas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        id_descarga INTEGER,
-        numero_peca INTEGER,
-        peso_kg REAL,
-        categoria TEXT,
-        segundo_furo INTEGER,
-        lombo INTEGER,
-        destino TEXT,
-        data_registro TEXT,
-        FOREIGN KEY(id_descarga) REFERENCES descargas(id)
-    )
-    """
-)
-
-try:
-    cursor.execute("ALTER TABLE pecas ADD COLUMN lombo INTEGER DEFAULT 0")
-except sqlite3.OperationalError:
-    pass
-
-conn.commit()
 
 
 # ============================================================
@@ -345,14 +505,15 @@ conn.commit()
 def classificar_faixa(peso):
     if peso < 15.0:
         return "< 15 kg · Refugo/Local"
-    if peso < 25.0:
-        return "15–24 kg"
-    if peso < 40.0:
-        return "25–39 kg"
-    return "40+ kg · Exportação"
+    elif peso < 25.0:
+        return "15-24kg"
+    elif peso < 40.0:
+        return "25-39kg"
+    else:
+        return "40+kg (Exportação)"
 
 
-def metric_card(label, value, accent="#1479a8"):
+def render_metric_card(label, value, accent="#1479a8"):
     st.markdown(
         f"""
         <div class="metric-card" style="border-left-color: {accent};">
@@ -365,13 +526,30 @@ def metric_card(label, value, accent="#1479a8"):
 
 
 # ============================================================
-# CABEÇALHO
+# CABEÇALHO PRINCIPAL
 # ============================================================
 
-st.markdown(
-    '<div class="main-title">🐟 NAVIMAR PESCADOS</div>',
-    unsafe_allow_html=True,
-)
+if logo is not None:
+    logo_col, title_col = st.columns([0.7, 5])
+
+    with logo_col:
+        st.image(logo, width=72)
+
+    with title_col:
+        st.markdown(
+            '<div class="main-title">NAVIMAR PESCADOS</div>',
+            unsafe_allow_html=True,
+        )
+else:
+    st.markdown(
+        """
+        <div class="logo-container">
+            <div class="logo-fallback">⚓</div>
+            <div class="main-title">NAVIMAR PESCADOS</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown(
     '<div class="page-subtitle">Controle de descargas, pesagem e classificação de pescados.</div>',
@@ -413,7 +591,11 @@ with st.expander(
     expanded=barcos_ativos.empty,
 ):
     tab1, tab2, tab3 = st.tabs(
-        ["➕ Nova descarga", "🚢 Descargas ativas", "📚 Histórico concluído"]
+        [
+            "➕ Nova descarga",
+            "🚢 Descargas ativas",
+            "📚 Histórico concluído",
+        ]
     )
 
     with tab1:
@@ -453,15 +635,19 @@ with st.expander(
                     (
                         novo_barco.strip(),
                         proprietario.strip(),
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
                     ),
                 )
+
                 conn.commit()
                 st.success("Nova descarga iniciada com sucesso.")
                 st.rerun()
             else:
                 st.warning(
-                    "Preencha o nome da embarcação e o armador/proprietário."
+                    "Preencha o nome da embarcação e "
+                    "o armador/proprietário."
                 )
 
     with tab2:
@@ -494,7 +680,9 @@ with st.expander(
                 unsafe_allow_html=True,
             )
         else:
-            st.info("Não existem descargas em andamento no momento.")
+            st.info(
+                "Não existem descargas em andamento no momento."
+            )
 
     with tab3:
         if not descargas_concluidas.empty:
@@ -510,7 +698,9 @@ with st.expander(
                 },
             )
         else:
-            st.info("Nenhuma descarga concluída registrada.")
+            st.info(
+                "Nenhuma descarga concluída registrada."
+            )
 
 
 # ============================================================
@@ -545,7 +735,11 @@ if not barcos_ativos.empty:
     )
 
     proxima_peca = len(df_pecas) + 1
-    total_kg_atual = df_pecas["peso_kg"].sum() if not df_pecas.empty else 0
+    total_kg_atual = (
+        df_pecas["peso_kg"].sum()
+        if not df_pecas.empty
+        else 0
+    )
 
     st.markdown("---")
 
@@ -556,28 +750,32 @@ if not barcos_ativos.empty:
             f'<div class="section-title">🚢 {dados_barco["barco"]}</div>',
             unsafe_allow_html=True,
         )
+
         st.markdown(
-            f'<div class="help-text">Armador / proprietário: {dados_barco["proprietario"]}</div>',
+            f'<div class="help-text">Armador / proprietário: '
+            f'{dados_barco["proprietario"]}</div>',
             unsafe_allow_html=True,
         )
 
     with status_col:
         st.markdown(
-            '<div style="text-align:right;"><span class="status-pill">● Operação ativa</span></div>',
+            '<div style="text-align:right;">'
+            '<span class="status-pill">● Operação ativa</span>'
+            '</div>',
             unsafe_allow_html=True,
         )
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
 
     with metric_col1:
-        metric_card(
+        render_metric_card(
             "Peças registradas",
             f"{len(df_pecas):,}",
             "#1479a8",
         )
 
     with metric_col2:
-        metric_card(
+        render_metric_card(
             "Peso total acumulado",
             f"{total_kg_atual:,.1f} kg",
             "#18a6a6",
@@ -589,7 +787,8 @@ if not barcos_ativos.empty:
             if not df_pecas.empty
             else 0
         )
-        metric_card(
+
+        render_metric_card(
             "Média por peça",
             f"{media_atual:,.1f} kg",
             "#d5a94f",
@@ -597,15 +796,15 @@ if not barcos_ativos.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Mantém uma chave mutável para que o campo seja recriado limpo
-    # depois de cada lançamento.
     if "peso_counter" not in st.session_state:
         st.session_state["peso_counter"] = 0
 
     if "ultimo_destino" not in st.session_state:
         st.session_state["ultimo_destino"] = "Caminhão"
 
-    campo_peso_key = f"peso_input_{st.session_state['peso_counter']}"
+    campo_peso_key = (
+        f"peso_input_{st.session_state['peso_counter']}"
+    )
 
     st.markdown(
         '<div class="input-card">',
@@ -613,13 +812,16 @@ if not barcos_ativos.empty:
     )
 
     st.markdown(
-        f'<div class="section-title">⚖️ Registrar peça nº {proxima_peca}</div>',
+        f'<div class="section-title">⚖️ Registrar peça nº '
+        f'{proxima_peca}</div>',
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        '<div class="help-text">Digite o peso e pressione Enter para salvar rapidamente. '
-        'O campo será liberado novamente para a próxima peça.</div>',
+        '<div class="help-text">'
+        'Digite o peso e pressione Enter para salvar rapidamente. '
+        'O campo será liberado novamente para a próxima peça.'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -652,7 +854,9 @@ if not barcos_ativos.empty:
             "Destino imediato",
             options=destinos,
             index=(
-                destinos.index(st.session_state["ultimo_destino"])
+                destinos.index(
+                    st.session_state["ultimo_destino"]
+                )
                 if st.session_state["ultimo_destino"] in destinos
                 else 0
             ),
@@ -668,9 +872,13 @@ if not barcos_ativos.empty:
             if peso_input is None:
                 st.error("Informe o peso da peça.")
             elif peso_input < 5.0:
-                st.error("O peso mínimo permitido é de 5,00 kg.")
+                st.error(
+                    "O peso mínimo permitido é de 5,00 kg."
+                )
             else:
-                categoria = classificar_faixa(float(peso_input))
+                categoria = classificar_faixa(
+                    float(peso_input)
+                )
 
                 cursor.execute(
                     """
@@ -694,7 +902,9 @@ if not barcos_ativos.empty:
                         1 if segundo_furo else 0,
                         1 if lombo else 0,
                         destino,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
                     ),
                 )
 
@@ -767,17 +977,22 @@ if not barcos_ativos.empty:
             type="secondary",
             use_container_width=True,
         ):
-            id_para_excluir = int(df_pecas.iloc[0]["id"])
+            id_para_excluir = int(
+                df_pecas.iloc[0]["id"]
+            )
 
             cursor.execute(
                 "DELETE FROM pecas WHERE id = ?",
                 (id_para_excluir,),
             )
+
             conn.commit()
 
             st.warning(
-                f"Peça nº {df_pecas.iloc[0]['numero_peca']} removida."
+                f"Peça nº {df_pecas.iloc[0]['numero_peca']} "
+                "removida."
             )
+
             st.rerun()
 
         st.markdown("---")
@@ -791,11 +1006,21 @@ if not barcos_ativos.empty:
             unsafe_allow_html=True,
         )
 
-        with st.expander("Encerrar lote e gerar balanço final"):
+        with st.expander(
+            "Encerrar lote e gerar balanço final"
+        ):
             total_kg = df_pecas["peso_kg"].sum()
             total_pecas = len(df_pecas)
-            media_kg = total_kg / total_pecas if total_pecas else 0
-            qtd_furo = int(df_pecas["segundo_furo"].sum())
+            media_kg = (
+                total_kg / total_pecas
+                if total_pecas
+                else 0
+            )
+
+            qtd_furo = int(
+                df_pecas["segundo_furo"].sum()
+            )
+
             qtd_lombo = (
                 int(df_pecas["lombo"].sum())
                 if "lombo" in df_pecas.columns
@@ -810,21 +1035,21 @@ if not barcos_ativos.empty:
             final_col1, final_col2, final_col3 = st.columns(3)
 
             with final_col1:
-                metric_card(
+                render_metric_card(
                     "Total de peças",
                     f"{total_pecas:,}",
                     "#1479a8",
                 )
 
             with final_col2:
-                metric_card(
+                render_metric_card(
                     "Total de peso",
                     f"{total_kg:,.1f} kg",
                     "#18a6a6",
                 )
 
             with final_col3:
-                metric_card(
+                render_metric_card(
                     "Média por peça",
                     f"{media_kg:,.1f} kg",
                     "#d5a94f",
@@ -836,7 +1061,9 @@ if not barcos_ativos.empty:
                     f"🔪 Peças como lombo: **{qtd_lombo}**"
                 )
 
-            csv_data = df_pecas.to_csv(index=False).encode("utf-8")
+            csv_data = df_pecas.to_csv(
+                index=False
+            ).encode("utf-8")
 
             st.download_button(
                 label="📥 Baixar relatório CSV",
@@ -869,6 +1096,7 @@ if not barcos_ativos.empty:
                     f"Descarga de **{dados_barco['barco']}** "
                     "finalizada e arquivada com sucesso."
                 )
+
                 st.balloons()
                 st.rerun()
 
