@@ -1,90 +1,123 @@
+from pathlib import Path
 import base64
 import io
-import os
 import sqlite3
 from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 from PIL import Image
 
 
 # ============================================================
-# CONFIGURAÇÃO DA PÁGINA
+# CAMINHOS DO PROJETO
 # ============================================================
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DB_PATH = os.path.join(BASE_DIR, "porto_atum.db")
-IMG_PATH = os.path.join(BASE_DIR, "logo.png")
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / "porto_atum.db"
+LOGO_PATH = BASE_DIR / "logo.png"
 
-if not os.path.exists(IMG_PATH):
-    IMG_PATH = "logo.png"
+
+# ============================================================
+# LOGO
+# ============================================================
 
 try:
-    logo = Image.open(IMG_PATH)
+    logo = Image.open(LOGO_PATH)
 except Exception:
-    logo = "🐟"
+    logo = None
+
+
+def get_image_base64(path):
+    try:
+        with open(path, "rb") as file:
+            return base64.b64encode(file.read()).decode("utf-8")
+    except Exception:
+        return ""
+
+
+logo_b64 = get_image_base64(LOGO_PATH)
+
+
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
 
 st.set_page_config(
     page_title="Painel Gerencial | NAVIMAR",
-    page_icon=logo,
+    page_icon=logo if logo is not None else "⚓",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 
 # ============================================================
-# IDENTIDADE VISUAL
+# ESTILO VISUAL
 # ============================================================
 
 st.markdown(
     """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url(
+            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+        );
 
         :root {
             --navy: #08263d;
-            --navy-dark: #041827;
             --blue: #1479a8;
-            --aqua: #18a6a6;
+            --blue-dark: #0b587d;
             --blue-light: #e7f4fa;
-            --cream: #f7f4ed;
+            --aqua: #18a6a6;
             --gold: #d5a94f;
             --text: #183243;
             --muted: #607786;
             --border: #c9d9df;
             --white: #ffffff;
-            --green: #087443;
-            --red: #b42318;
+            --cream: #fffaf0;
+            --success: #087443;
         }
 
         html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
+            font-family: "Inter", sans-serif;
         }
 
-        .stApp {
-            background:
-                radial-gradient(circle at top right, rgba(20, 121, 168, 0.10), transparent 30%),
-                linear-gradient(180deg, #f6fbfc 0%, #eaf4f4 100%);
-            color: var(--text);
-        }
-
+        .stApp,
         [data-testid="stAppViewContainer"] {
-            background: transparent;
+            background:
+                radial-gradient(
+                    circle at top right,
+                    rgba(20, 121, 168, 0.08),
+                    transparent 30%
+                ),
+                linear-gradient(
+                    180deg,
+                    #f7fbfc 0%,
+                    #eaf4f4 100%
+                ) !important;
+            color: var(--text) !important;
         }
 
         [data-testid="stHeader"] {
-            background: rgba(255, 255, 255, 0.82);
+            background: rgba(255, 255, 255, 0.85) !important;
         }
 
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, var(--navy-dark), var(--navy));
+            background: linear-gradient(
+                180deg,
+                #041827,
+                #08263d
+            ) !important;
         }
 
         [data-testid="stSidebar"] * {
             color: #ffffff !important;
+        }
+
+        .block-container {
+            max-width: 1450px;
+            padding-top: 1.5rem;
+            padding-bottom: 3rem;
         }
 
         h1, h2, h3, h4, h5, h6 {
@@ -93,50 +126,52 @@ st.markdown(
             letter-spacing: -0.03em;
         }
 
-        p, label, span, div {
-            color: var(--text);
-        }
-
-        .block-container {
-            max-width: 1450px;
-            padding-top: 1.7rem;
-            padding-bottom: 3rem;
+        p, label {
+            color: var(--text) !important;
         }
 
         .main-title {
-            color: var(--navy);
+            color: var(--navy) !important;
             font-size: clamp(2rem, 4vw, 3rem);
             font-weight: 800;
-            letter-spacing: -0.055em;
+            letter-spacing: -0.05em;
             margin-bottom: 0.2rem;
         }
 
         .page-subtitle {
             color: var(--muted) !important;
             font-size: 1rem;
-            margin-bottom: 1.3rem;
+            margin-bottom: 1.25rem;
         }
 
         .section-title {
-            color: var(--navy);
-            font-size: 1.35rem;
+            color: var(--navy) !important;
+            font-size: 1.3rem;
             font-weight: 800;
-            margin: 0.5rem 0 0.8rem 0;
+            margin: 0.7rem 0 0.8rem 0;
+        }
+
+        .muted-text,
+        .help-text {
+            color: var(--muted) !important;
+            font-size: 0.88rem;
         }
 
         .lote-header {
-            background: linear-gradient(135deg, var(--navy), #0b496b);
+            background: linear-gradient(
+                135deg,
+                #0b587d,
+                #1479a8
+            ) !important;
             border-radius: 18px;
             padding: 1.2rem 1.4rem;
-            color: white;
-            box-shadow: 0 10px 28px rgba(8, 38, 61, 0.18);
             margin: 0.8rem 0 1.2rem 0;
+            box-shadow: 0 10px 28px rgba(8, 38, 61, 0.16);
         }
 
         .lote-header h2,
-        .lote-header p,
-        .lote-header span {
-            color: white !important;
+        .lote-header p {
+            color: #ffffff !important;
             margin: 0;
         }
 
@@ -146,12 +181,12 @@ st.markdown(
         }
 
         .lote-header p {
-            opacity: 0.84;
+            opacity: 0.9;
             font-size: 0.9rem;
         }
 
         .metric-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: #ffffff !important;
             border: 1px solid var(--border);
             border-left: 5px solid var(--blue);
             border-radius: 16px;
@@ -182,7 +217,7 @@ st.markdown(
         }
 
         .summary-card {
-            background: linear-gradient(135deg, #ffffff, #f3fafc);
+            background: #ffffff !important;
             border: 1px solid var(--border);
             border-radius: 18px;
             padding: 1.2rem;
@@ -194,123 +229,202 @@ st.markdown(
             color: var(--navy) !important;
         }
 
-        .price-card {
-            background: rgba(255, 255, 255, 0.94);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 0.5rem 0.75rem 0.15rem 0.75rem;
-        }
-
-        .stTextInput > div > div,
-        .stNumberInput > div > div,
-        .stSelectbox > div > div {
+        .filter-card {
             background: #ffffff !important;
-            border: 1px solid #9db5c0 !important;
-            border-radius: 10px !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 16px !important;
+            padding: 1rem !important;
+            margin-bottom: 0.8rem !important;
+            box-shadow: 0 6px 18px rgba(8, 38, 61, 0.06) !important;
         }
 
-        .stTextInput input,
-        .stNumberInput input {
+        .filter-card label {
             color: var(--text) !important;
-            background: #ffffff !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
         }
+
+        /* =====================================================
+           BOTÕES
+        ===================================================== */
 
         .stButton > button,
-        .stDownloadButton > button {
-            min-height: 2.75rem;
-            border-radius: 10px;
-            font-weight: 700;
-            transition: all 0.18s ease;
+        .stDownloadButton > button,
+        .stFormSubmitButton > button {
+            outline: none !important;
+            filter: none !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+            transition:
+                background-color 0.16s ease,
+                border-color 0.16s ease,
+                transform 0.16s ease;
         }
 
         .stButton > button {
-            background: var(--navy);
-            border: 1px solid var(--navy);
+            background: var(--navy) !important;
             color: #ffffff !important;
+            border: 1px solid var(--navy) !important;
         }
 
         .stButton > button:hover {
-            background: var(--blue);
-            border-color: var(--blue);
+            background: var(--blue) !important;
+            color: #ffffff !important;
+            border-color: var(--blue) !important;
             transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(20, 121, 168, 0.24);
+        }
+
+        .stButton > button:focus,
+        .stButton > button:focus-visible,
+        .stButton > button:active {
+            outline: none !important;
+            box-shadow: none !important;
         }
 
         .stDownloadButton > button {
-            background: var(--cream);
-            border: 1px solid var(--gold);
+            background: var(--cream) !important;
             color: var(--navy) !important;
+            border: 1px solid var(--gold) !important;
         }
 
         .stDownloadButton > button:hover {
-            background: #fff8e8;
-            border-color: var(--gold);
+            background: #fff3d6 !important;
+            color: var(--navy) !important;
+            border-color: #bd8b23 !important;
         }
 
+        /* =====================================================
+           ABAS
+        ===================================================== */
+
         .stTabs [data-baseweb="tab-list"] {
-            gap: 0.45rem;
-            background: rgba(255, 255, 255, 0.75);
-            padding: 0.4rem;
-            border-radius: 12px;
+            display: flex !important;
+            gap: 0.45rem !important;
+            background: #edf5f7 !important;
+            border: 1px solid var(--border) !important;
+            padding: 0.35rem !important;
+            border-radius: 12px !important;
+            box-shadow: none !important;
         }
 
         .stTabs [data-baseweb="tab"] {
-            border-radius: 9px;
-            color: var(--muted);
-            font-weight: 700;
+            height: 2.55rem !important;
+            padding: 0 1rem !important;
+            border-radius: 9px !important;
+            background: transparent !important;
+            color: #365466 !important;
+            font-weight: 700 !important;
+            box-shadow: none !important;
+            outline: none !important;
         }
 
-        .stTabs [aria-selected="true"] {
-            background: var(--navy) !important;
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #dcecf2 !important;
+            color: var(--navy) !important;
+        }
+
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            background: var(--blue) !important;
             color: #ffffff !important;
+            box-shadow: none !important;
         }
 
-        .stExpander {
-            background: rgba(255, 255, 255, 0.78);
-            border: 1px solid var(--border);
-            border-radius: 14px;
+        .stTabs [data-baseweb="tab-highlight"],
+        .stTabs [data-baseweb="tab-border"] {
+            display: none !important;
         }
+
+        /* =====================================================
+           FILTROS SELECT E MULTISELECT
+        ===================================================== */
+
+        [data-baseweb="select"] > div {
+            background: #ffffff !important;
+            color: var(--text) !important;
+            border: 1px solid #9db5c0 !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+
+        [data-baseweb="select"] input {
+            color: var(--text) !important;
+            background: #ffffff !important;
+        }
+
+        [data-baseweb="select"] [data-baseweb="tag"] {
+            background: var(--blue-light) !important;
+            border: 1px solid #a8cfdd !important;
+            color: var(--navy) !important;
+        }
+
+        [data-baseweb="select"] [data-baseweb="tag"] span {
+            color: var(--navy) !important;
+        }
+
+        [data-baseweb="select"] svg {
+            fill: var(--navy) !important;
+        }
+
+        [role="listbox"],
+        [data-baseweb="menu"] {
+            background: #ffffff !important;
+            border: 1px solid var(--border) !important;
+            color: var(--text) !important;
+            box-shadow: 0 8px 22px rgba(8, 38, 61, 0.14) !important;
+        }
+
+        [role="option"] {
+            background: #ffffff !important;
+            color: var(--text) !important;
+        }
+
+        [role="option"]:hover,
+        [aria-selected="true"] {
+            background: var(--blue-light) !important;
+            color: var(--navy) !important;
+        }
+
+        [data-baseweb="select"] > div:focus-within {
+            border-color: var(--blue) !important;
+            box-shadow: 0 0 0 2px rgba(20, 121, 168, 0.14) !important;
+        }
+
+        /* =====================================================
+           TABELAS
+        ===================================================== */
 
         [data-testid="stDataFrame"] {
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
+            background: #ffffff !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
         }
 
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.4rem 0.7rem;
-            border-radius: 999px;
-            background: #e4f6ed;
-            border: 1px solid #acdcbf;
-            color: var(--green) !important;
-            font-size: 0.8rem;
-            font-weight: 800;
+        [data-testid="stDataFrame"] iframe {
+            background: #ffffff !important;
         }
 
-        .muted-text {
-            color: var(--muted) !important;
-            font-size: 0.88rem;
+        /* =====================================================
+           REMOÇÃO DE EFEITOS DE FOCO
+        ===================================================== */
+
+        button:focus,
+        button:focus-visible,
+        input:focus,
+        input:focus-visible,
+        [data-baseweb="tab"]:focus,
+        [data-baseweb="tab"]:focus-visible {
+            outline: none !important;
+        }
+
+        [data-baseweb="tab-list"]::before,
+        [data-baseweb="tab-list"]::after {
+            display: none !important;
         }
 
         hr {
             border: none;
             border-top: 1px solid rgba(96, 119, 134, 0.24);
             margin: 1.45rem 0;
-        }
-
-        @media (max-width: 768px) {
-            .block-container {
-                padding-left: 1rem;
-                padding-right: 1rem;
-            }
-
-            .metric-value {
-                font-size: 1.25rem;
-            }
         }
     </style>
     """,
@@ -319,16 +433,8 @@ st.markdown(
 
 
 # ============================================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES
 # ============================================================
-
-def get_image_base64(path):
-    try:
-        with open(path, "rb") as file:
-            return base64.b64encode(file.read()).decode("utf-8")
-    except Exception:
-        return ""
-
 
 def metric_card(label, value, helper="", accent="#1479a8"):
     st.markdown(
@@ -353,36 +459,50 @@ def format_date(value):
         return str(value)
 
 
-def safe_lombo_column(df):
-    if "lombo" not in df.columns:
-        df["lombo"] = "Não"
-    return df
+def ensure_lombo_column(dataframe):
+    dataframe = dataframe.copy()
+
+    if "lombo" not in dataframe.columns:
+        dataframe["lombo"] = "Não"
+
+    return dataframe
 
 
-def build_financial_dataframe(df, prices):
-    df = safe_lombo_column(df.copy())
+def build_financial_dataframe(dataframe, prices):
+    dataframe = ensure_lombo_column(dataframe)
 
-    df_furo = df[df["segundo_furo"] == "Sim"]
-    df_lombo = df[
-        (df["lombo"] == "Sim")
-        & (df["segundo_furo"] == "Não")
+    df_furo = dataframe[
+        dataframe["segundo_furo"] == "Sim"
     ]
-    df_normal = df[
-        (df["segundo_furo"] == "Não")
-        & (df["lombo"] == "Não")
+
+    df_lombo = dataframe[
+        (dataframe["lombo"] == "Sim")
+        & (dataframe["segundo_furo"] == "Não")
+    ]
+
+    df_normal = dataframe[
+        (dataframe["segundo_furo"] == "Não")
+        & (dataframe["lombo"] == "Não")
     ]
 
     kg_15_24 = df_normal[
-        df_normal["peso"] == "15-24kg"
+        df_normal["peso"].isin(
+            ["15-24kg", "15–24 kg"]
+        )
     ]["peso_kg"].sum()
 
     kg_25_39 = df_normal[
-        df_normal["peso"] == "25-39kg"
+        df_normal["peso"].isin(
+            ["25-39kg", "25–39 kg"]
+        )
     ]["peso_kg"].sum()
 
     kg_40 = df_normal[
         df_normal["peso"].isin(
-            ["40+kg (Exportação)", "40+ kg · Exportação"]
+            [
+                "40+kg (Exportação)",
+                "40+ kg · Exportação",
+            ]
         )
     ]["peso_kg"].sum()
 
@@ -397,22 +517,22 @@ def build_financial_dataframe(df, prices):
         ("LOMBO", kg_lombo, prices["lombo"]),
     ]
 
-    result = []
+    financial_rows = []
 
-    for tipo, kg, preco in rows:
-        result.append(
+    for category, kilograms, price in rows:
+        financial_rows.append(
             {
-                "TIPO (ATUM)": tipo,
-                "KG": float(kg),
-                "PREÇO (R$)": float(preco),
-                "TOTAL": float(kg * preco),
+                "TIPO (ATUM)": category,
+                "KG": float(kilograms),
+                "PREÇO (R$)": float(price),
+                "TOTAL": float(kilograms * price),
             }
         )
 
-    total_kg = sum(row["KG"] for row in result)
-    total_value = sum(row["TOTAL"] for row in result)
+    total_kg = sum(row["KG"] for row in financial_rows)
+    total_value = sum(row["TOTAL"] for row in financial_rows)
 
-    result.append(
+    financial_rows.append(
         {
             "TIPO (ATUM)": "TOTAL",
             "KG": total_kg,
@@ -421,15 +541,10 @@ def build_financial_dataframe(df, prices):
         }
     )
 
-    return pd.DataFrame(result)
+    return pd.DataFrame(financial_rows)
 
 
-# ============================================================
-# CONEXÃO COM BANCO
-# ============================================================
-
-@st.cache_resource
-def get_db():
+def get_database():
     connection = sqlite3.connect(
         DB_PATH,
         check_same_thread=False,
@@ -453,8 +568,11 @@ def get_db():
     return connection
 
 
-conn = get_db()
-logo_b64 = get_image_base64(IMG_PATH)
+# ============================================================
+# BANCO
+# ============================================================
+
+conn = get_database()
 
 
 # ============================================================
@@ -473,13 +591,15 @@ st.markdown(
 )
 
 st.markdown(
-    '<div class="page-subtitle">Acompanhe produção, classificação, romaneio e resultados financeiros por lote.</div>',
+    '<div class="page-subtitle">'
+    'Acompanhe produção, classificação, romaneio e resultados financeiros por lote.'
+    '</div>',
     unsafe_allow_html=True,
 )
 
 
 # ============================================================
-# SELEÇÃO DE LOTE
+# DESCARGAS
 # ============================================================
 
 descargas = pd.read_sql(
@@ -511,7 +631,7 @@ lote_selecionado = st.selectbox(
 
 
 # ============================================================
-# CONSULTA ANALÍTICA
+# CONSULTA DAS PEÇAS
 # ============================================================
 
 query_analitica = """
@@ -524,18 +644,22 @@ query_analitica = """
         p.numero_peca,
         p.peso_kg,
         p.categoria AS peso,
+
         CASE
             WHEN p.peso_kg >= 40.0 THEN 1
             ELSE 0
         END AS is_exportacao,
+
         CASE
             WHEN p.segundo_furo = 1 THEN 'Sim'
             ELSE 'Não'
         END AS segundo_furo,
+
         CASE
             WHEN p.lombo = 1 THEN 'Sim'
             ELSE 'Não'
         END AS lombo,
+
         p.destino,
         p.data_registro AS data_hora
     FROM pecas p
@@ -562,14 +686,17 @@ except Exception:
             p.numero_peca,
             p.peso_kg,
             p.categoria AS peso,
+
             CASE
                 WHEN p.peso_kg >= 40.0 THEN 1
                 ELSE 0
             END AS is_exportacao,
+
             CASE
                 WHEN p.segundo_furo = 1 THEN 'Sim'
                 ELSE 'Não'
             END AS segundo_furo,
+
             'Não' AS lombo,
             p.destino,
             p.data_registro AS data_hora
@@ -590,11 +717,11 @@ if df.empty:
     st.warning("Este lote ainda não possui peças registradas.")
     st.stop()
 
-df = safe_lombo_column(df)
+df = ensure_lombo_column(df)
 
 
 # ============================================================
-# CABEÇALHO DO LOTE
+# INFORMAÇÕES DO LOTE
 # ============================================================
 
 barco_nome = str(df["barco"].iloc[0])
@@ -623,37 +750,52 @@ st.markdown(
 # ============================================================
 
 tab_gerencial, tab_romaneio = st.tabs(
-    ["📊 Visão geral", "📄 Romaneio comercial"]
+    [
+        "📊 Visão geral",
+        "📄 Romaneio comercial",
+    ]
 )
 
 
 # ============================================================
-# ABA GERENCIAL
+# VISÃO GERAL
 # ============================================================
 
 with tab_gerencial:
     total_kg = float(df["peso_kg"].sum())
     total_pecas = len(df)
     peso_medio = float(df["peso_kg"].mean())
+
     peso_export = float(
-        df.loc[df["is_exportacao"] == 1, "peso_kg"].sum()
+        df.loc[
+            df["is_exportacao"] == 1,
+            "peso_kg",
+        ].sum()
     )
+
     perc_export = (
-        (peso_export / total_kg) * 100
+        peso_export / total_kg * 100
         if total_kg > 0
         else 0
     )
-    qtd_furo = int((df["segundo_furo"] == "Sim").sum())
+
+    qtd_furo = int(
+        (df["segundo_furo"] == "Sim").sum()
+    )
+
     perc_furo = (
-        (qtd_furo / total_pecas) * 100
+        qtd_furo / total_pecas * 100
         if total_pecas > 0
         else 0
     )
-    qtd_lombo = int((df["lombo"] == "Sim").sum())
 
-    metric_cols = st.columns(5)
+    qtd_lombo = int(
+        (df["lombo"] == "Sim").sum()
+    )
 
-    with metric_cols[0]:
+    metrics = st.columns(5)
+
+    with metrics[0]:
         metric_card(
             "Peso total",
             f"{total_kg:,.1f} kg",
@@ -661,7 +803,7 @@ with tab_gerencial:
             "#1479a8",
         )
 
-    with metric_cols[1]:
+    with metrics[1]:
         metric_card(
             "Total de peças",
             f"{total_pecas:,}",
@@ -669,7 +811,7 @@ with tab_gerencial:
             "#18a6a6",
         )
 
-    with metric_cols[2]:
+    with metrics[2]:
         metric_card(
             "Média por peça",
             f"{peso_medio:,.2f} kg",
@@ -677,7 +819,7 @@ with tab_gerencial:
             "#d5a94f",
         )
 
-    with metric_cols[3]:
+    with metrics[3]:
         metric_card(
             "Exportação",
             f"{perc_export:.1f}%",
@@ -685,7 +827,7 @@ with tab_gerencial:
             "#087443",
         )
 
-    with metric_cols[4]:
+    with metrics[4]:
         metric_card(
             "Lombo / 2º furo",
             f"{qtd_lombo:,} / {qtd_furo:,}",
@@ -717,7 +859,7 @@ with tab_gerencial:
             labels={
                 "numero_peca": "Número da peça",
                 "peso_kg": "Peso (kg)",
-                "peso": "Faixa",
+                "peso": "Classificação",
                 "segundo_furo": "2º furo",
             },
             color_discrete_sequence=[
@@ -726,18 +868,46 @@ with tab_gerencial:
                 "#d5a94f",
                 "#08263d",
             ],
-            template="plotly_white",
-        )
-
-        fig_scatter.update_layout(
-            height=390,
-            margin=dict(t=20, b=20, l=10, r=10),
-            legend_title_text="Classificação",
-            hovermode="closest",
         )
 
         fig_scatter.update_traces(
-            marker=dict(size=10, line=dict(width=1, color="white"))
+            marker=dict(
+                size=11,
+                line=dict(
+                    width=1,
+                    color="#ffffff",
+                ),
+            )
+        )
+
+        fig_scatter.update_layout(
+            template="plotly_white",
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
+            font=dict(
+                family="Inter, Arial, sans-serif",
+                color="#183243",
+            ),
+            legend=dict(
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="#c9d9df",
+                borderwidth=1,
+                font=dict(color="#183243"),
+            ),
+            xaxis=dict(
+                title_font=dict(color="#08263d"),
+                tickfont=dict(color="#183243"),
+                gridcolor="#dbe7eb",
+                linecolor="#9db5c0",
+            ),
+            yaxis=dict(
+                title_font=dict(color="#08263d"),
+                tickfont=dict(color="#183243"),
+                gridcolor="#dbe7eb",
+                linecolor="#9db5c0",
+            ),
+            height=390,
+            margin=dict(t=25, b=35, l=25, r=20),
         )
 
         st.plotly_chart(
@@ -752,9 +922,15 @@ with tab_gerencial:
         )
 
         df_destino = (
-            df.groupby("destino", as_index=False)["peso_kg"]
+            df.groupby(
+                "destino",
+                as_index=False,
+            )["peso_kg"]
             .sum()
-            .sort_values("peso_kg", ascending=False)
+            .sort_values(
+                "peso_kg",
+                ascending=False,
+            )
         )
 
         fig_pie = px.pie(
@@ -767,28 +943,40 @@ with tab_gerencial:
                 "peso_kg": "Peso (kg)",
             },
             color_discrete_sequence=[
-                "#08263d",
                 "#1479a8",
                 "#18a6a6",
                 "#d5a94f",
+                "#08263d",
             ],
-            template="plotly_white",
-        )
-
-        fig_pie.update_layout(
-            height=390,
-            margin=dict(t=20, b=20, l=10, r=10),
-            legend_title_text="Destino",
         )
 
         fig_pie.update_traces(
             textposition="inside",
             textinfo="percent+label",
-            hovertemplate=(
-                "<b>%{label}</b><br>"
-                "%{value:,.1f} kg<br>"
-                "%{percent}<extra></extra>"
+            marker=dict(
+                line=dict(
+                    color="#ffffff",
+                    width=2,
+                )
             ),
+        )
+
+        fig_pie.update_layout(
+            template="plotly_white",
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#ffffff",
+            font=dict(
+                family="Inter, Arial, sans-serif",
+                color="#183243",
+            ),
+            legend=dict(
+                bgcolor="rgba(255,255,255,0.9)",
+                bordercolor="#c9d9df",
+                borderwidth=1,
+                font=dict(color="#183243"),
+            ),
+            height=390,
+            margin=dict(t=25, b=25, l=20, r=20),
         )
 
         st.plotly_chart(
@@ -811,18 +999,24 @@ with tab_gerencial:
             Peso_Medio_Kg=("peso_kg", "mean"),
             Com_2_Furo=(
                 "segundo_furo",
-                lambda values: (values == "Sim").sum(),
+                lambda values: (
+                    values == "Sim"
+                ).sum(),
             ),
             Com_Lombo=(
                 "lombo",
-                lambda values: (values == "Sim").sum(),
+                lambda values: (
+                    values == "Sim"
+                ).sum(),
             ),
         )
         .reset_index()
     )
 
     resumo_peso["Part_%"] = (
-        resumo_peso["Peso_Total_Kg"] / total_kg * 100
+        resumo_peso["Peso_Total_Kg"]
+        / total_kg
+        * 100
         if total_kg > 0
         else 0
     )
@@ -830,8 +1024,12 @@ with tab_gerencial:
     st.dataframe(
         resumo_peso,
         column_config={
-            "peso": st.column_config.TextColumn("Faixa de peso"),
-            "Pecas": st.column_config.NumberColumn("Peças"),
+            "peso": st.column_config.TextColumn(
+                "Faixa de peso"
+            ),
+            "Pecas": st.column_config.NumberColumn(
+                "Peças"
+            ),
             "Peso_Total_Kg": st.column_config.NumberColumn(
                 "Peso total",
                 format="%.2f kg",
@@ -840,8 +1038,12 @@ with tab_gerencial:
                 "Média",
                 format="%.2f kg",
             ),
-            "Com_2_Furo": st.column_config.NumberColumn("2º furo"),
-            "Com_Lombo": st.column_config.NumberColumn("Lombo"),
+            "Com_2_Furo": st.column_config.NumberColumn(
+                "2º furo"
+            ),
+            "Com_Lombo": st.column_config.NumberColumn(
+                "Lombo"
+            ),
             "Part_%": st.column_config.NumberColumn(
                 "Participação",
                 format="%.1f%%",
@@ -858,19 +1060,37 @@ with tab_gerencial:
         unsafe_allow_html=True,
     )
 
+    st.markdown(
+        '<div class="filter-card">',
+        unsafe_allow_html=True,
+    )
+
     filtro_col1, filtro_col2 = st.columns(2)
 
     with filtro_col1:
         filtro_peso = st.multiselect(
             "Filtrar por faixa de peso",
-            options=sorted(df["peso"].dropna().unique().tolist()),
+            options=sorted(
+                df["peso"].dropna().unique().tolist()
+            ),
+            placeholder="Selecione uma ou mais faixas",
+            key="filtro_peso_dashboard",
         )
 
     with filtro_col2:
         filtro_destino = st.multiselect(
             "Filtrar por destino",
-            options=sorted(df["destino"].dropna().unique().tolist()),
+            options=sorted(
+                df["destino"].dropna().unique().tolist()
+            ),
+            placeholder="Selecione um ou mais destinos",
+            key="filtro_destino_dashboard",
         )
+
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     df_visual = df.copy()
 
@@ -897,16 +1117,28 @@ with tab_gerencial:
             ]
         ],
         column_config={
-            "numero_peca": st.column_config.NumberColumn("Nº"),
+            "numero_peca": st.column_config.NumberColumn(
+                "Nº"
+            ),
             "peso_kg": st.column_config.NumberColumn(
                 "Peso",
                 format="%.2f kg",
             ),
-            "peso": st.column_config.TextColumn("Classificação"),
-            "segundo_furo": st.column_config.TextColumn("2º furo"),
-            "lombo": st.column_config.TextColumn("Lombo"),
-            "destino": st.column_config.TextColumn("Destino"),
-            "data_hora": st.column_config.TextColumn("Registro"),
+            "peso": st.column_config.TextColumn(
+                "Classificação"
+            ),
+            "segundo_furo": st.column_config.TextColumn(
+                "2º furo"
+            ),
+            "lombo": st.column_config.TextColumn(
+                "Lombo"
+            ),
+            "destino": st.column_config.TextColumn(
+                "Destino"
+            ),
+            "data_hora": st.column_config.TextColumn(
+                "Registro"
+            ),
         },
         hide_index=True,
         use_container_width=True,
@@ -914,7 +1146,7 @@ with tab_gerencial:
 
 
 # ============================================================
-# ABA ROMANEIO
+# ROMANEIO
 # ============================================================
 
 with tab_romaneio:
@@ -926,8 +1158,8 @@ with tab_romaneio:
     info_col1, info_col2 = st.columns([1, 3])
 
     with info_col1:
-        if os.path.exists(IMG_PATH):
-            st.image(IMG_PATH, width=190)
+        if logo is not None:
+            st.image(logo, width=190)
         else:
             st.markdown(
                 '<div class="section-title">NAVIMAR PESCADOS</div>',
@@ -942,7 +1174,9 @@ with tab_romaneio:
                 <p><strong>BARCO:</strong> {barco_nome}</p>
                 <p><strong>PROPRIETÁRIO:</strong> {armador_nome}</p>
                 <p><strong>COMPRADOR:</strong> NAVIMAR PESCADOS</p>
-                <p><strong>DATA:</strong> {format_date(df["data_hora"].iloc[0])}</p>
+                <p><strong>DATA:</strong> {
+                    format_date(df["data_hora"].iloc[0])
+                }</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1020,15 +1254,15 @@ with tab_romaneio:
         tabela_precos,
     )
 
-    total_romaneio_kg = df_romaneio.iloc[-1]["KG"]
-    total_romaneio_value = df_romaneio.iloc[-1]["TOTAL"]
+    total_kg_comercial = df_romaneio.iloc[-1]["KG"]
+    total_valor = df_romaneio.iloc[-1]["TOTAL"]
 
     total_cols = st.columns(2)
 
     with total_cols[0]:
         metric_card(
             "Peso comercial",
-            f"{total_romaneio_kg:,.2f} kg",
+            f"{total_kg_comercial:,.2f} kg",
             "Base do romaneio",
             "#1479a8",
         )
@@ -1036,8 +1270,8 @@ with tab_romaneio:
     with total_cols[1]:
         metric_card(
             "Valor estimado",
-            f"R$ {total_romaneio_value:,.2f}",
-            "Total conforme preços informados",
+            f"R$ {total_valor:,.2f}",
+            "Conforme preços informados",
             "#18a6a6",
         )
 
@@ -1052,7 +1286,7 @@ with tab_romaneio:
         df_romaneio,
         column_config={
             "TIPO (ATUM)": st.column_config.TextColumn(
-                "Tipo de atum",
+                "Tipo de atum"
             ),
             "KG": st.column_config.NumberColumn(
                 "Peso",
@@ -1089,7 +1323,6 @@ def gerar_dashboard_html(
         text="Peso_Total_Kg",
         color="peso",
         title="Volume total por faixa de peso",
-        template="plotly_white",
         color_discrete_sequence=[
             "#1479a8",
             "#18a6a6",
@@ -1108,6 +1341,17 @@ def gerar_dashboard_html(
     )
 
     fig_calibre.update_layout(
+        template="plotly_white",
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        font=dict(
+            family="Inter, Arial, sans-serif",
+            color="#183243",
+        ),
+        title_font=dict(
+            color="#08263d",
+            size=18,
+        ),
         showlegend=False,
         height=420,
         margin=dict(t=60, b=40, l=40, r=40),
@@ -1118,18 +1362,18 @@ def gerar_dashboard_html(
         include_plotlyjs="cdn",
     )
 
-    linhas_financeiro = ""
+    rows_html = ""
 
     for _, row in df_financeiro.iterrows():
-        is_total = row["TIPO (ATUM)"] == "TOTAL"
+        total_row = row["TIPO (ATUM)"] == "TOTAL"
 
         style = (
-            "font-weight: 800; background: #e7f4fa;"
-            if is_total
+            "font-weight:800;background:#e7f4fa;"
+            if total_row
             else ""
         )
 
-        linhas_financeiro += f"""
+        rows_html += f"""
             <tr style="{style}">
                 <td>{row["TIPO (ATUM)"]}</td>
                 <td style="text-align:right;">
@@ -1145,12 +1389,12 @@ def gerar_dashboard_html(
         """
 
     if logo_b64_str:
-        img_tag = (
+        logo_tag = (
             f'<img src="data:image/png;base64,{logo_b64_str}" '
-            'style="max-height: 105px; max-width: 220px;">'
+            'style="max-height:105px;max-width:220px;">'
         )
     else:
-        img_tag = "<h2>NAVIMAR PESCADOS</h2>"
+        logo_tag = "<h2>NAVIMAR PESCADOS</h2>"
 
     html = f"""
     <!DOCTYPE html>
@@ -1160,7 +1404,7 @@ def gerar_dashboard_html(
         <title>Relatório - {df_lote["barco"].iloc[0]}</title>
         <style>
             body {{
-                font-family: Inter, Arial, sans-serif;
+                font-family: Arial, sans-serif;
                 background: #eaf4f4;
                 padding: 24px;
                 color: #183243;
@@ -1169,7 +1413,7 @@ def gerar_dashboard_html(
             .container {{
                 max-width: 1100px;
                 margin: auto;
-                background: white;
+                background: #ffffff;
                 padding: 34px;
                 border-radius: 20px;
                 box-shadow: 0 12px 30px rgba(8, 38, 61, .12);
@@ -1238,27 +1482,30 @@ def gerar_dashboard_html(
                 .content {{
                     display: block;
                 }}
-
-                .header > div {{
-                    margin-bottom: 18px;
-                }}
             }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <div>{img_tag}</div>
+                <div>{logo_tag}</div>
                 <div style="text-align:right;">
                     <h1>ROMANEIO DE DESCARGA</h1>
-                    <p><strong>Barco:</strong> {df_lote["barco"].iloc[0]}</p>
-                    <p><strong>Data:</strong> {format_date(df_lote["data_hora"].iloc[0])}</p>
+                    <p>
+                        <strong>Barco:</strong>
+                        {df_lote["barco"].iloc[0]}
+                    </p>
+                    <p>
+                        <strong>Data:</strong>
+                        {format_date(df_lote["data_hora"].iloc[0])}
+                    </p>
                 </div>
             </div>
 
             <div class="content">
                 <div>
                     <h2>Resumo financeiro</h2>
+
                     <table>
                         <thead>
                             <tr>
@@ -1268,8 +1515,9 @@ def gerar_dashboard_html(
                                 <th style="text-align:right;">Total</th>
                             </tr>
                         </thead>
+
                         <tbody>
-                            {linhas_financeiro}
+                            {rows_html}
                         </tbody>
                     </table>
                 </div>
@@ -1290,16 +1538,28 @@ def gerar_dashboard_html(
 # EXPORTAÇÃO EXCEL
 # ============================================================
 
-def gerar_excel_executivo(df_lote, precos, img_path):
+def gerar_excel_executivo(
+    df_lote,
+    prices,
+    image_path,
+):
     output = io.BytesIO()
 
-    barco = str(df_lote["barco"].iloc[0]).upper()
-    armador = str(df_lote["armador"].iloc[0]).upper()
-    data_lote = format_date(df_lote["data_hora"].iloc[0])
+    barco = str(
+        df_lote["barco"].iloc[0]
+    ).upper()
+
+    armador = str(
+        df_lote["armador"].iloc[0]
+    ).upper()
+
+    data_lote = format_date(
+        df_lote["data_hora"].iloc[0]
+    )
 
     df_financeiro = build_financial_dataframe(
         df_lote,
-        precos,
+        prices,
     )
 
     with pd.ExcelWriter(
@@ -1307,7 +1567,10 @@ def gerar_excel_executivo(df_lote, precos, img_path):
         engine="xlsxwriter",
     ) as writer:
         workbook = writer.book
-        worksheet = workbook.add_worksheet("Romaneio")
+        worksheet = workbook.add_worksheet(
+            "Romaneio"
+        )
+
         worksheet.hide_gridlines(2)
 
         worksheet.set_column("A:A", 3)
@@ -1403,7 +1666,7 @@ def gerar_excel_executivo(df_lote, precos, img_path):
 
         start_row = 1
 
-        info = [
+        information = [
             ("BARCO:", barco),
             ("PROPRIETÁRIO:", armador),
             ("COMANDANTE:", ""),
@@ -1411,15 +1674,28 @@ def gerar_excel_executivo(df_lote, precos, img_path):
             ("DATA:", data_lote),
         ]
 
-        for offset, (label, value) in enumerate(info):
-            worksheet.write(start_row + offset, 1, label, fmt_label)
-            worksheet.write(start_row + offset, 2, value, fmt_value)
+        for offset, (label, value) in enumerate(
+            information
+        ):
+            worksheet.write(
+                start_row + offset,
+                1,
+                label,
+                fmt_label,
+            )
+
+            worksheet.write(
+                start_row + offset,
+                2,
+                value,
+                fmt_value,
+            )
 
         try:
-            if os.path.exists(img_path):
+            if Path(image_path).exists():
                 worksheet.insert_image(
                     "E2",
-                    img_path,
+                    str(image_path),
                     {
                         "x_scale": 0.28,
                         "y_scale": 0.28,
@@ -1431,6 +1707,7 @@ def gerar_excel_executivo(df_lote, precos, img_path):
             pass
 
         table_row = start_row + 7
+
         headers = [
             "TIPO (ATUM)",
             "KG",
@@ -1438,10 +1715,13 @@ def gerar_excel_executivo(df_lote, precos, img_path):
             "TOTAL",
         ]
 
-        for col_num, header in enumerate(headers, start=1):
+        for column, header in enumerate(
+            headers,
+            start=1,
+        ):
             worksheet.write(
                 table_row,
-                col_num,
+                column,
                 header,
                 fmt_header,
             )
@@ -1455,24 +1735,28 @@ def gerar_excel_executivo(df_lote, precos, img_path):
                 row["TIPO (ATUM)"],
                 fmt_text,
             )
+
             worksheet.write(
                 data_row,
                 2,
                 float(row["KG"]),
                 fmt_number,
             )
+
             worksheet.write(
                 data_row,
                 3,
                 float(row["PREÇO (R$)"]),
                 fmt_money,
             )
+
             worksheet.write(
                 data_row,
                 4,
                 float(row["TOTAL"]),
                 fmt_money,
             )
+
             data_row += 1
 
         total_row = data_row
@@ -1484,18 +1768,21 @@ def gerar_excel_executivo(df_lote, precos, img_path):
             "TOTAL",
             fmt_total_text,
         )
+
         worksheet.write(
             total_row,
             2,
             float(total["KG"]),
             fmt_total_number,
         )
+
         worksheet.write(
             total_row,
             3,
             "-",
             fmt_total_text,
         )
+
         worksheet.write(
             total_row,
             4,
@@ -1507,13 +1794,15 @@ def gerar_excel_executivo(df_lote, precos, img_path):
 
 
 # ============================================================
-# ÁREA DE EXPORTAÇÃO
+# EXPORTAÇÕES
 # ============================================================
 
 st.markdown("---")
 
 st.markdown(
-    '<div class="section-title">📥 Exportação do relatório oficial</div>',
+    '<div class="section-title">'
+    '📥 Exportação do relatório oficial'
+    '</div>',
     unsafe_allow_html=True,
 )
 
@@ -1530,7 +1819,9 @@ with export_col1:
     st.download_button(
         label="🌐 Dashboard interativo · HTML",
         data=html_bytes,
-        file_name=f"dashboard_lote_{barco_nome}.html",
+        file_name=(
+            f"dashboard_lote_{barco_nome}.html"
+        ),
         mime="text/html",
         use_container_width=True,
     )
@@ -1539,13 +1830,15 @@ with export_col2:
     excel_bytes = gerar_excel_executivo(
         df,
         tabela_precos,
-        IMG_PATH,
+        LOGO_PATH,
     )
 
     st.download_button(
         label="📊 Excel executivo · XLSX",
         data=excel_bytes,
-        file_name=f"Romaneio_Navimar_{barco_nome}.xlsx",
+        file_name=(
+            f"Romaneio_Navimar_{barco_nome}.xlsx"
+        ),
         mime=(
             "application/vnd.openxmlformats-officedocument."
             "spreadsheetml.sheet"
@@ -1555,13 +1848,15 @@ with export_col2:
 
 with export_col3:
     csv_data = df_romaneio.to_csv(
-        index=False,
+        index=False
     ).encode("utf-8")
 
     st.download_button(
         label="📥 Resumo comercial · CSV",
         data=csv_data,
-        file_name=f"resumo_comercial_{barco_nome}.csv",
+        file_name=(
+            f"resumo_comercial_{barco_nome}.csv"
+        ),
         mime="text/csv",
         use_container_width=True,
     )
