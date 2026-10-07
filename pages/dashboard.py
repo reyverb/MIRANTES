@@ -3,15 +3,27 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 from PIL import Image
+import os
 
-logo = Image.open("logo.png")
+# --- 1. CARREGAMENTO DA IMAGEM ---
+try:
+    # Ajuste do caminho da imagem para garantir que encontre estando dentro da pasta pages/
+    img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logo.png")
+    logo = Image.open(img_path)
+except FileNotFoundError:
+    try:
+         logo = Image.open("logo.png")
+    except:
+         logo = "🐟"
+
+# --- 2. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Painel Gerencial & Romaneio",
     page_icon=logo,
     layout="wide"
 )
 
-# --- IDENTIDADE VISUAL E CORES AQUÁTICAS ---
+# --- 3. IDENTIDADE VISUAL ---
 st.markdown("""
 <style>
     [data-testid="stAppViewContainer"] {
@@ -38,7 +50,6 @@ st.markdown("""
         color: #E4D9C3;
         border: 2px solid #E4D9C3;
     }
-    /* Estilo para Tabela do Romaneio */
     [data-testid="stDataFrame"] {
         border: 2px solid #031523;
         border-radius: 5px;
@@ -46,17 +57,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Conexão com o banco compartilhado
+# --- 4. CONEXÃO SEGURA E RECUPERAÇÃO DO BANCO ---
 @st.cache_resource
 def get_db():
     conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
+    cursor = conn.cursor()
+    # Garante a existência da tabela antes de prosseguir
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS descargas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, barco TEXT NOT NULL,
+        proprietario TEXT NOT NULL, data_hora TEXT NOT NULL,
+        status TEXT DEFAULT 'Em Andamento'
+    )""")
+    conn.commit()
     return conn
 
 conn = get_db()
 
+# --- 5. INTERFACE DO DASHBOARD ---
 st.page_link("app.py", label="Voltar para a Pesagem no Cais", icon="🐟")
-
 st.title("📊 Painel Gerencial & Romaneio")
 
 descargas = pd.read_sql("SELECT id, barco, proprietario, data_hora, status FROM descargas ORDER BY id DESC", conn)
@@ -76,7 +96,7 @@ lote_selecionado = st.selectbox(
     format_func=lambda x: opcoes[x]
 )
 
-# Consulta incluindo a nova coluna LOMBO e renomeando categoria para 'peso'
+# Consulta com proteção para a coluna lombo
 try:
     query_analitica = """
     SELECT 
@@ -98,7 +118,6 @@ try:
     """
     df = pd.read_sql(query_analitica, conn, params=(int(lote_selecionado),))
 except:
-    # Fallback caso a tabela 'pecas' ainda não tenha a coluna 'lombo' por algum motivo
     query_analitica_fallback = """
     SELECT 
         d.id AS id_lote,
@@ -123,7 +142,8 @@ if df.empty:
     st.warning("Este lote não possui peças registradas ainda.")
     st.stop()
 
-# --- ABAS PARA SEPARAR VISÃO GERAL DO ROMANEIO (NOVO DASHBOARD) ---
+
+# --- ABAS VISUAIS ---
 tab_gerencial, tab_romaneio = st.tabs(["📊 Visão Geral", "📄 Romaneio Oficial"])
 
 with tab_gerencial:
@@ -147,7 +167,6 @@ with tab_gerencial:
 
     col_graf, col_tab = st.columns([1, 1])
 
-    # Utilizando "peso" em vez de "calibre"
     resumo_peso = df.groupby("peso").agg(
         Pecas=("numero_peca", "count"),
         Peso_Total_Kg=("peso_kg", "sum"),
@@ -175,16 +194,21 @@ with tab_gerencial:
             use_container_width=True
         )
 
+
 with tab_romaneio:
     st.subheader("Romaneio de Descarga")
     
-    # Cabeçalho com Logo e Informações
     col_img, col_info = st.columns([1, 3])
     with col_img:
         try:
-            st.image("image_2d6b5c.png", width=180)
+             # Tenta carregar a imagem na interface
+             st.image(img_path, width=180)
         except:
-            st.markdown("### NAVIMAR PESCADOS")
+             try:
+                  st.image("logo.png", width=180)
+             except:
+                  st.markdown("### NAVIMAR PESCADOS")
+                  
     with col_info:
         st.write(f"**BARCO:** {df['barco'].iloc[0]}")
         st.write(f"**PROPRIETÁRIO:** {df['armador'].iloc[0]}")
@@ -195,7 +219,6 @@ with tab_romaneio:
     st.markdown("---")
     st.write("### 💰 Tabela de Preços (Edite os valores em R$)")
 
-    # Campos de Edição para os Preços Baseados na Tabela Excel
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         preco_15_24 = st.number_input("R$ (15-24KG)", value=25.00, step=1.00)
@@ -208,7 +231,6 @@ with tab_romaneio:
     with col5:
         preco_lombo = st.number_input("R$ (LOMBO)", value=15.00, step=1.00)
 
-    # Filtragem correta dos pesos conforme as categorias marcadas
     df_furo = df[df["segundo_furo"] == "Sim"]
     df_lombo = df[(df["lombo"] == "Sim") & (df["segundo_furo"] == "Não")]
     df_normal = df[(df["segundo_furo"] == "Não") & (df["lombo"] == "Não")]
@@ -219,7 +241,6 @@ with tab_romaneio:
     kg_furo = df_furo["peso_kg"].sum()
     kg_lombo = df_lombo["peso_kg"].sum()
 
-    # Cálculos Finais
     total_15_24 = kg_15_24 * preco_15_24
     total_25_39 = kg_25_39 * preco_25_39
     total_40 = kg_40 * preco_40
@@ -229,7 +250,6 @@ with tab_romaneio:
     kg_geral = kg_15_24 + kg_25_39 + kg_40 + kg_furo + kg_lombo
     total_geral = total_15_24 + total_25_39 + total_40 + total_furo + total_lombo
 
-    # Montando a Tabela do Romaneio (Modelo Excel)
     romaneio_data = {
         "TIPO (ATUM)": ["15KG - 24KG", "25KG - 39KG", "40KG ACIMA", "2º FURO", "LOMBO", "TOTAL"],
         "KG": [kg_15_24, kg_25_39, kg_40, kg_furo, kg_lombo, kg_geral],
@@ -242,7 +262,6 @@ with tab_romaneio:
     st.markdown("### 📄 Resultado do Romaneio")
     st.dataframe(df_romaneio, use_container_width=True, hide_index=True)
 
-    # Botão para exportar no final
     csv_romaneio = df_romaneio.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Baixar Romaneio do Barco (CSV)",
