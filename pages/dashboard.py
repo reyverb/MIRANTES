@@ -447,8 +447,19 @@ def ensure_lombo_column(dataframe):
 
 
 def build_financial_dataframe(dataframe, prices):
+    # ATENÇÃO: Substitua pelo seu código original.
+    # Este é um esqueleto temporário para permitir a execução.
+    dados = {
+        "TIPO (ATUM)": ["15KG - 24KG", "TOTAL"],
+        "KG": [0.0, 0.0],
+        "PREÇO (R$)": [0.0, 0.0],
+        "TOTAL": [0.0, 0.0]
+    }
+    return pd.DataFrame(dados)
+
+
 # ============================================================
-# RELAÇÃO INDIVIDUAL DO CAMINHÃO
+# UTILITÁRIOS DE RELAÇÃO INDIVIDUAL
 # ============================================================
 
 def formatar_numero_brasileiro(valor):
@@ -466,13 +477,13 @@ def formatar_numero_brasileiro(valor):
 
 def classificar_peca_relacao(row):
     """
-    Define a categoria operacional de cada peixe.
+    Classificação usada exclusivamente na Relação do Caminhão.
 
-    Ordem de prioridade:
+    Prioridades:
     1. 2º FURO
     2. LOMBO
-    3. Categoria registrada no banco
-    4. Faixa calculada pelo peso, se necessário
+    3. Categoria armazenada no banco
+    4. Faixa inferida pelo peso como contingência
     """
     if str(row.get("segundo_furo", "Não")).strip() == "Sim":
         return "2º FURO"
@@ -510,18 +521,13 @@ def classificar_peca_relacao(row):
 
 def preparar_relacao_caminhao(df_lote):
     """
-    Preserva cada peixe como uma linha individual.
-    Não consolida nem agrupa pesos.
+    Mantém uma linha por peixe. Não há consolidação de pesos.
     """
-    df_relacao = ensure_lombo_column(
-        df_lote
-    ).copy()
+    df_relacao = ensure_lombo_column(df_lote).copy()
 
-    df_relacao["CLASSIFICACAO_RELACAO"] = (
-        df_relacao.apply(
-            classificar_peca_relacao,
-            axis=1,
-        )
+    df_relacao["CLASSIFICACAO_RELACAO"] = df_relacao.apply(
+        classificar_peca_relacao,
+        axis=1,
     )
 
     df_relacao["PESO_RELACAO"] = pd.to_numeric(
@@ -569,8 +575,10 @@ def preparar_relacao_caminhao(df_lote):
         .reset_index(drop=True)
     )
 
-    return pd.DataFrame(result)
 
+# ============================================================
+# BANCO E ACESSO A DADOS
+# ============================================================
 
 def get_database():
     connection = sqlite3.connect(
@@ -595,10 +603,6 @@ def get_database():
     connection.commit()
     return connection
 
-
-# ============================================================
-# BANCO
-# ============================================================
 
 conn = get_database()
 
@@ -1348,6 +1352,7 @@ with tab_romaneio:
         hide_index=True,
         use_container_width=True,
     )
+
 # ============================================================
 # PDF - RELATÓRIO DE DESCARGA COM LOGO NAVIMAR
 # ============================================================
@@ -1383,10 +1388,6 @@ def gerar_dashboard_pdf(
     # --------------------------------------------------------
 
     def format_number(value):
-        """
-        Formata um número no padrão brasileiro:
-        2133.00 -> 2.133,00
-        """
         return (
             f"{float(value):,.2f}"
             .replace(",", "X")
@@ -1405,10 +1406,6 @@ def gerar_dashboard_pdf(
         border_color=LINE,
         shadow=True,
     ):
-        """
-        Desenha um card com sombra leve, cantos arredondados,
-        fundo branco e borda extremamente discreta.
-        """
         if shadow:
             pdf_canvas.setFillColor(SHADOW)
             pdf_canvas.roundRect(
@@ -1442,11 +1439,6 @@ def gerar_dashboard_pdf(
         card_width,
         card_height,
     ):
-        """
-        Insere a logo em um card, mantendo a proporção original.
-        A imagem usa comportamento equivalente a object-fit: contain:
-        mostra a marca inteira, sem distorcer e sem cortes.
-        """
         draw_rounded_card(
             pdf_canvas,
             x=x,
@@ -1821,11 +1813,21 @@ def gerar_dashboard_pdf(
     pdf.save()
 
     return buffer.getvalue()
+
+
 # ============================================================
 # EXCEL EXECUTIVO MODELO
 # ============================================================
 
-def gerar_excel_executivo(
+def gerar_excel_executivo(df_lote, prices, image_path):
+    # ATENÇÃO: Substitua pelo seu código original.
+    # Este é um esqueleto temporário para permitir a execução.
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        pd.DataFrame({"Aviso": ["Lógica Ausente"]}).to_excel(writer, index=False)
+    return output.getvalue()
+
+
 # ============================================================
 # EXCEL — RELAÇÃO INDIVIDUAL DO CAMINHÃO
 # ============================================================
@@ -1838,17 +1840,16 @@ def gerar_relacao_caminhao_excel(
     comprador="",
 ):
     """
-    Gera uma planilha para pré-venda e conferência do caminhão.
+    Gera uma relação individual para pré-venda e conferência.
 
-    Cada peixe recebe uma coluna própria. Os pesos não são
-    agrupados: isso permite ao comprador ver exatamente o que
-    está chegando na carga.
+    Regra principal:
+    cada peixe se transforma em uma coluna própria.
+    Portanto, os pesos não são agrupados.
     """
     output = io.BytesIO()
 
     barco = str(df_lote["barco"].iloc[0]).upper()
     armador = str(df_lote["armador"].iloc[0]).upper()
-
     data_lote = format_date(
         df_lote["data_hora"].iloc[0]
     )
@@ -1871,9 +1872,7 @@ def gerar_relacao_caminhao_excel(
         else "NAVIMAR PESCADOS"
     )
 
-    df_relacao = preparar_relacao_caminhao(
-        df_lote
-    )
+    df_relacao = preparar_relacao_caminhao(df_lote)
 
     ordem_categorias = [
         "15KG - 24KG",
@@ -1915,8 +1914,7 @@ def gerar_relacao_caminhao_excel(
 
     for categoria in ordem_categorias:
         df_categoria = df_relacao[
-            df_relacao["CLASSIFICACAO_RELACAO"]
-            == categoria
+            df_relacao["CLASSIFICACAO_RELACAO"] == categoria
         ]
 
         for _, peca in df_categoria.iterrows():
@@ -1948,7 +1946,6 @@ def gerar_relacao_caminhao_excel(
         engine="xlsxwriter",
     ) as writer:
         workbook = writer.book
-
         worksheet = workbook.add_worksheet(
             "Relação do Caminhão"
         )
@@ -2133,17 +2130,13 @@ def gerar_relacao_caminhao_excel(
         )
 
         # ----------------------------------------------------
-        # TAMANHOS
+        # CONFIGURAÇÃO DA PLANILHA
         # ----------------------------------------------------
 
         worksheet.set_column(0, 0, 19)
 
         for coluna in range(1, ultima_coluna + 1):
-            worksheet.set_column(
-                coluna,
-                coluna,
-                12,
-            )
+            worksheet.set_column(coluna, coluna, 12)
 
         worksheet.set_row(0, 25)
         worksheet.set_row(1, 16)
@@ -2163,10 +2156,7 @@ def gerar_relacao_caminhao_excel(
         # CABEÇALHO OPERACIONAL
         # ----------------------------------------------------
 
-        fim_titulo = min(
-            ultima_coluna,
-            8,
-        )
+        fim_titulo = min(ultima_coluna, 8)
 
         worksheet.merge_range(
             0,
@@ -2215,7 +2205,7 @@ def gerar_relacao_caminhao_excel(
                 fmt_value,
             )
 
-        # Logo no cabeçalho quando houver arquivo.
+        # Logo no canto superior direito, se disponível.
         try:
             if Path(logo_path).exists():
                 coluna_logo = max(
@@ -2239,7 +2229,7 @@ def gerar_relacao_caminhao_excel(
             pass
 
         # ----------------------------------------------------
-        # RELAÇÃO INDIVIDUAL DAS PEÇAS
+        # PEIXES INDIVIDUAIS
         # ----------------------------------------------------
 
         linha_categoria = 7
@@ -2425,6 +2415,7 @@ def gerar_relacao_caminhao_excel(
 # ============================================================
 # EXPORTAÇÕES
 # ============================================================
+
 st.markdown("---")
 
 st.markdown(
@@ -2507,10 +2498,10 @@ st.markdown(
     """
     <div class="summary-card">
         <p>
-            Gere a relação detalhada da carga para conferência,
-            separação e pré-venda. Cada peixe é apresentado
-            individualmente, preservando a categoria e o peso
-            registrado na pesagem.
+            Esta exportação lista cada peixe individualmente,
+            organizado por classificação e cor. Ela serve para
+            a conferência da carga e pré-venda antes da chegada
+            do caminhão ao comprador.
         </p>
     </div>
     """,
@@ -2562,5 +2553,3 @@ st.download_button(
     ),
     use_container_width=True,
 )
-
-
