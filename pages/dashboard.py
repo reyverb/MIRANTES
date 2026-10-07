@@ -1301,7 +1301,7 @@ with tab_romaneio:
 
 
 # ============================================================
-# PDF
+# PDF - RELATÓRIO DE DESCARGA (NOVO LAYOUT NAVIMAR)
 # ============================================================
 
 def gerar_dashboard_pdf(
@@ -1310,374 +1310,154 @@ def gerar_dashboard_pdf(
     df_financeiro,
     logo_path,
 ):
-    from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import (
-        ParagraphStyle,
-        getSampleStyleSheet,
-    )
-    from reportlab.lib.units import cm
-    from reportlab.platypus import (
-        Image as ReportImage,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.colors import HexColor, white
+    from io import BytesIO
 
-    output = io.BytesIO()
+    NAVY = HexColor("#0B2545")
+    METAL = HexColor("#4F7CAC")
+    LINE = HexColor("#E6EAF0")
+    SLATE = HexColor("#5B6573")
+    LIGHT = HexColor("#A3ABB7")
+    SHADOW = HexColor("#E9EDF3")
+    CARD = HexColor("#FFFFFF")
+
+    W, H = A4
+    m = 40
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
 
     barco = str(df_lote["barco"].iloc[0])
     armador = str(df_lote["armador"].iloc[0])
-    data_lote = format_date(
-        df_lote["data_hora"].iloc[0]
-    )
+    data_lote = format_date(df_lote["data_hora"].iloc[0])
 
     total_kg = float(df_lote["peso_kg"].sum())
     total_pecas = int(len(df_lote))
+    peso_medio = total_kg / total_pecas if total_pecas > 0 else 0
 
-    peso_medio = (
-        total_kg / total_pecas
-        if total_pecas > 0
-        else 0
-    )
+    # ---------- CABEÇALHO ----------
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 26)
+    c.drawString(m, H - m - 18, "NAVIMAR")
+    c.setFillColor(METAL)
+    c.rect(m, H - m - 27, 34, 2.5, stroke=0, fill=1)
 
-    document = SimpleDocTemplate(
-        output,
-        pagesize=A4,
-        rightMargin=1.3 * cm,
-        leftMargin=1.3 * cm,
-        topMargin=1.1 * cm,
-        bottomMargin=1.1 * cm,
-        title=f"Relatório - {barco}",
-        author="NAVIMAR PESCADOS",
-    )
+    c.setFillColor(SLATE)
+    c.setFont("Helvetica", 8.5)
+    for i, t in enumerate([f"Barco: {barco}", f"Proprietário: {armador}", f"Data: {data_lote}"]):
+        c.drawRightString(W - m, H - m - 8 - i * 12, t)
 
-    styles = getSampleStyleSheet()
+    c.setStrokeColor(LINE)
+    c.setLineWidth(0.8)
+    c.line(m, H - m - 42, W - m, H - m - 42)
 
-    title_style = ParagraphStyle(
-        "NavimarTitle",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=18,
-        textColor=colors.HexColor("#08263d"),
-        spaceAfter=4,
-    )
+    # ---------- TÍTULO ----------
+    c.setFillColor(NAVY)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(m, H - 130, "Relatório de Descarga")
 
-    subtitle_style = ParagraphStyle(
-        "NavimarSubtitle",
-        parent=styles["Normal"],
-        fontSize=9,
-        leading=12,
-        textColor=colors.HexColor("#607786"),
-    )
+    # ---------- RESUMO OPERACIONAL (KPI CARDS) ----------
+    c.setFillColor(METAL)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(m, H - 160, "RESUMO OPERACIONAL")
 
-    section_style = ParagraphStyle(
-        "NavimarSection",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=12,
-        textColor=colors.HexColor("#08263d"),
-        spaceBefore=10,
-        spaceAfter=7,
-    )
+    gap = 14
+    cw = (W - 2 * m - 2 * gap) / 3
+    ch = 74
+    top = H - 176
 
-    story = []
+    for i, (lab, val) in enumerate([("PESO TOTAL", f"{total_kg:.1f} kg"),
+                                     ("PEÇAS", str(total_pecas)),
+                                     ("MÉDIA POR PEÇA", f"{peso_medio:.2f} kg")]):
+        x = m + i * (cw + gap)
+        y = top - ch
 
-    if Path(logo_path).exists():
-        report_logo = ReportImage(
-            str(logo_path),
-            width=3.8 * cm,
-            height=1.5 * cm,
-            kind="proportional",
-        )
-    else:
-        report_logo = Paragraph(
-            "<b>NAVIMAR PESCADOS</b>",
-            title_style,
-        )
+        # sombra suave
+        c.setFillColor(SHADOW)
+        c.roundRect(x + 1.5, y - 3, cw, ch, 10, stroke=0, fill=1)
+        c.setFillColor(HexColor("#F1F4F8"))
+        c.roundRect(x + 0.8, y - 1.5, cw, ch, 10, stroke=0, fill=1)
 
-    header_table = Table(
-        [
-            [
-                report_logo,
-                Paragraph(
-                    "<b>RELATÓRIO DE DESCARGA</b>",
-                    title_style,
-                ),
-            ],
-            [
-                "",
-                Paragraph(
-                    f"<b>Barco:</b> {barco}<br/>"
-                    f"<b>Proprietário:</b> {armador}<br/>"
-                    f"<b>Data:</b> {data_lote}",
-                    subtitle_style,
-                ),
-            ],
-        ],
-        colWidths=[5.0 * cm, 12.7 * cm],
-    )
+        # cartão
+        c.setFillColor(CARD)
+        c.setStrokeColor(LINE)
+        c.setLineWidth(0.6)
+        c.roundRect(x, y, cw, ch, 10, stroke=1, fill=1)
 
-    header_table.setStyle(
-        TableStyle(
-            [
-                (
-                    "VALIGN",
-                    (0, 0),
-                    (-1, -1),
-                    "MIDDLE",
-                ),
-                (
-                    "ALIGN",
-                    (1, 0),
-                    (1, -1),
-                    "RIGHT",
-                ),
-                (
-                    "LINEBELOW",
-                    (0, -1),
-                    (-1, -1),
-                    1.5,
-                    colors.HexColor("#1479a8"),
-                ),
-                (
-                    "BOTTOMPADDING",
-                    (0, 0),
-                    (-1, -1),
-                    8,
-                ),
-            ]
-        )
-    )
+        # detalhe metálico
+        c.setFillColor(METAL)
+        c.roundRect(x + 14, y + ch - 14, 18, 2.5, 1, stroke=0, fill=1)
 
-    story.append(header_table)
-    story.append(Spacer(1, 0.4 * cm))
+        # rótulo e valor
+        c.setFillColor(SLATE)
+        c.setFont("Helvetica", 7.5)
+        c.drawString(x + 14, y + ch - 28, lab)
+        c.setFillColor(NAVY)
+        c.setFont("Helvetica-Bold", 24)
+        c.drawString(x + 14, y + 16, val)
 
-    story.append(
-        Paragraph(
-            "Resumo operacional",
-            section_style,
-        )
-    )
+    # ---------- RESUMO COMERCIAL (TABELA) ----------
+    y = top - ch - 40
+    c.setFillColor(METAL)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(m, y, "RESUMO COMERCIAL")
+    y -= 16
 
-    summary_table = Table(
-        [
-            [
-                "Peso total",
-                "Peças",
-                "Média por peça",
-            ],
-            [
-                f"{total_kg:,.1f} kg",
-                f"{total_pecas}",
-                f"{peso_medio:,.2f} kg",
-            ],
-        ],
-        colWidths=[
-            5.9 * cm,
-            5.9 * cm,
-            5.9 * cm,
-        ],
-    )
+    cols = [m + 4, m + 250, m + 365, W - m - 4]
+    c.setFillColor(SLATE)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.drawString(cols[0], y, "TIPO (ATUM)")
+    c.drawRightString(cols[1], y, "KG")
+    c.drawRightString(cols[2], y, "PREÇO (R$)")
+    c.drawRightString(cols[3], y, "TOTAL")
 
-    summary_table.setStyle(
-        TableStyle(
-            [
-                (
-                    "BACKGROUND",
-                    (0, 0),
-                    (-1, 0),
-                    colors.HexColor("#08263d"),
-                ),
-                (
-                    "TEXTCOLOR",
-                    (0, 0),
-                    (-1, 0),
-                    colors.white,
-                ),
-                (
-                    "BACKGROUND",
-                    (0, 1),
-                    (-1, 1),
-                    colors.HexColor("#e7f4fa"),
-                ),
-                (
-                    "TEXTCOLOR",
-                    (0, 1),
-                    (-1, 1),
-                    colors.HexColor("#08263d"),
-                ),
-                (
-                    "FONTNAME",
-                    (0, 0),
-                    (-1, -1),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "ALIGN",
-                    (0, 0),
-                    (-1, -1),
-                    "CENTER",
-                ),
-                (
-                    "GRID",
-                    (0, 0),
-                    (-1, -1),
-                    0.5,
-                    colors.HexColor("#c9d9df"),
-                ),
-                (
-                    "TOPPADDING",
-                    (0, 0),
-                    (-1, -1),
-                    8,
-                ),
-                (
-                    "BOTTOMPADDING",
-                    (0, 0),
-                    (-1, -1),
-                    8,
-                ),
-            ]
-        )
-    )
+    y -= 10
+    c.setStrokeColor(NAVY)
+    c.setLineWidth(0.9)
+    c.line(m, y, W - m, y)
 
-    story.append(summary_table)
-    story.append(Spacer(1, 0.35 * cm))
+    rh = 30
+    for _, row in df_financeiro.iloc[:-1].iterrows():
+        tipo = row["TIPO (ATUM)"]
+        kg = float(row["KG"])
+        preco = float(row["PREÇO (R$)"])
+        tot = float(row["TOTAL"])
+        y -= rh
+        c.setFillColor(NAVY)
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(cols[0], y + 10, tipo)
 
-    story.append(
-        Paragraph(
-            "Resumo comercial",
-            section_style,
-        )
-    )
+        c.setFont("Helvetica", 9.5)
+        c.setFillColor(SLATE)
+        c.drawRightString(cols[1], y + 10, f"{kg:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        c.drawRightString(cols[2], y + 10, f"{preco:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        c.drawRightString(cols[3], y + 10, f"R$ {tot:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
-    financial_data = [
-        [
-            "TIPO (ATUM)",
-            "KG",
-            "PREÇO (R$)",
-            "TOTAL",
-        ]
-    ]
+        c.setStrokeColor(LINE)
+        c.setLineWidth(0.5)
+        c.line(m, y, W - m, y)
 
-    for _, row in df_financeiro.iterrows():
-        financial_data.append(
-            [
-                row["TIPO (ATUM)"],
-                f'{row["KG"]:,.2f}',
-                (
-                    "-"
-                    if row["TIPO (ATUM)"] == "TOTAL"
-                    else f'R$ {row["PREÇO (R$)"]:,.2f}'
-                ),
-                f'R$ {row["TOTAL"]:,.2f}',
-            ]
-        )
+    # linha TOTAL destacada
+    total_row = df_financeiro.iloc[-1]
+    y -= 8
+    th = 34
+    y -= th
+    c.setFillColor(NAVY)
+    c.roundRect(m, y, W - 2 * m, th, 6, stroke=0, fill=1)
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 10.5)
+    c.drawString(cols[0] + 6, y + 12, "TOTAL")
+    c.drawRightString(cols[1], y + 12, f"{float(total_row['KG']):.2f}".replace(".", ","))
+    c.drawRightString(cols[3] - 6, y + 12, ("R$ " + f"{float(total_row['TOTAL']):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")))
 
-    financial_table = Table(
-        financial_data,
-        colWidths=[
-            6.2 * cm,
-            3.3 * cm,
-            4.2 * cm,
-            4.0 * cm,
-        ],
-        repeatRows=1,
-    )
+    # ---------- RODAPÉ ----------
+    c.setFillColor(LIGHT)
+    c.setFont("Helvetica", 7.5)
+    c.drawCentredString(W / 2, 28, "Documento gerado pelo sistema NAVIMAR PESCADOS.")
 
-    financial_table.setStyle(
-        TableStyle(
-            [
-                (
-                    "BACKGROUND",
-                    (0, 0),
-                    (-1, 0),
-                    colors.HexColor("#08263d"),
-                ),
-                (
-                    "TEXTCOLOR",
-                    (0, 0),
-                    (-1, 0),
-                    colors.white,
-                ),
-                (
-                    "FONTNAME",
-                    (0, 0),
-                    (-1, 0),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "ALIGN",
-                    (1, 1),
-                    (-1, -1),
-                    "RIGHT",
-                ),
-                (
-                    "GRID",
-                    (0, 0),
-                    (-1, -1),
-                    0.5,
-                    colors.HexColor("#c9d9df"),
-                ),
-                (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -2),
-                    [
-                        colors.white,
-                        colors.HexColor("#f7fbfc"),
-                    ],
-                ),
-                (
-                    "BACKGROUND",
-                    (0, -1),
-                    (-1, -1),
-                    colors.HexColor("#e7f4fa"),
-                ),
-                (
-                    "FONTNAME",
-                    (0, -1),
-                    (-1, -1),
-                    "Helvetica-Bold",
-                ),
-                (
-                    "TEXTCOLOR",
-                    (0, -1),
-                    (-1, -1),
-                    colors.HexColor("#08263d"),
-                ),
-                (
-                    "TOPPADDING",
-                    (0, 0),
-                    (-1, -1),
-                    8,
-                ),
-                (
-                    "BOTTOMPADDING",
-                    (0, 0),
-                    (-1, -1),
-                    8,
-                ),
-            ]
-        )
-    )
-
-    story.append(financial_table)
-    story.append(Spacer(1, 0.4 * cm))
-
-    story.append(
-        Paragraph(
-            "Documento gerado pelo sistema NAVIMAR PESCADOS.",
-            subtitle_style,
-        )
-    )
-
-    document.build(story)
-
-    return output.getvalue()
+    c.save()
+    return buffer.getvalue()
 
 
 # ============================================================
