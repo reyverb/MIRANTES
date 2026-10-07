@@ -1,80 +1,335 @@
-import streamlit as st
-import pandas as pd
+import os
 import sqlite3
 from datetime import datetime
-from PIL import Image
-import os
 
-# --- 1. CARREGAMENTO DA IMAGEM COM PROTEÇÃO ---
+import pandas as pd
+import streamlit as st
+from PIL import Image
+
+
+# ============================================================
+# CONFIGURAÇÃO DA PÁGINA
+# ============================================================
+
 try:
-    logo = Image.open("logo.png") 
+    logo = Image.open("logo.png")
 except FileNotFoundError:
     logo = "🐟"
 
-# --- 2. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="NAVIMAR PESCADOS", layout="centered", page_icon=logo)
+st.set_page_config(
+    page_title="NAVIMAR PESCADOS",
+    layout="wide",
+    page_icon=logo,
+    initial_sidebar_state="collapsed",
+)
 
-# --- 3. IDENTIDADE VISUAL ---
-st.markdown("""
-<style>
-    [data-testid="stAppViewContainer"] {
-        background-color: #EAF4F4; 
-    }
-    [data-testid="stSidebar"] {
-        background-color: #031523; 
-    }
-    h1, h2, h3, h4 {
-        color: #031523 !important; 
-    }
-    p, label, span {
-        color: #031523 !important;
-    }
-    .stButton>button {
-        background-color: #E4D9C3; 
-        color: #031523;
-        border-radius: 5px;
-        font-weight: bold;
-        border: 2px solid #031523;
-    }
-    .stButton>button:hover {
-        background-color: #031523;
-        color: #E4D9C3;
-        border: 2px solid #E4D9C3;
-    }
-</style>
-""", unsafe_allow_html=True)
 
-# --- 4. CONEXÃO E CRIAÇÃO DA BASE DE DADOS (CRÍTICO PARA A NUVEM) ---
+# ============================================================
+# IDENTIDADE VISUAL
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --navy: #08263d;
+            --navy-dark: #041827;
+            --blue: #1479a8;
+            --blue-light: #e7f4fa;
+            --aqua: #18a6a6;
+            --cream: #f7f4ed;
+            --gold: #d5a94f;
+            --text: #183243;
+            --muted: #607786;
+            --border: #c9d9df;
+            --white: #ffffff;
+            --danger: #b42318;
+            --success: #087443;
+        }
+
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .stApp {
+            background:
+                radial-gradient(circle at top right, rgba(20, 121, 168, 0.10), transparent 30%),
+                linear-gradient(180deg, #f6fbfc 0%, #eaf4f4 100%);
+            color: var(--text);
+        }
+
+        [data-testid="stAppViewContainer"] {
+            background: transparent;
+        }
+
+        [data-testid="stHeader"] {
+            background: rgba(255, 255, 255, 0.78);
+        }
+
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, var(--navy-dark), var(--navy));
+        }
+
+        [data-testid="stSidebar"] * {
+            color: #ffffff !important;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--navy) !important;
+            letter-spacing: -0.02em;
+            font-weight: 800 !important;
+        }
+
+        p, label, span, div {
+            color: var(--text);
+        }
+
+        .block-container {
+            max-width: 1380px;
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+        }
+
+        .main-title {
+            color: var(--navy);
+            font-size: clamp(2rem, 4vw, 3.1rem);
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            margin-bottom: 0.15rem;
+        }
+
+        .page-subtitle {
+            color: var(--muted);
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            color: var(--navy);
+            font-size: 1.35rem;
+            font-weight: 800;
+            margin-top: 0.6rem;
+            margin-bottom: 0.7rem;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.42rem 0.75rem;
+            border-radius: 999px;
+            background: #e4f6ed;
+            color: var(--success) !important;
+            border: 1px solid #acdcbf;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--blue);
+            border-radius: 16px;
+            padding: 1rem 1.1rem;
+            box-shadow: 0 8px 24px rgba(8, 38, 61, 0.08);
+            min-height: 105px;
+        }
+
+        .metric-label {
+            color: var(--muted) !important;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .metric-value {
+            color: var(--navy) !important;
+            font-size: 1.65rem;
+            font-weight: 800;
+            margin-top: 0.35rem;
+        }
+
+        .input-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 1.25rem;
+            box-shadow: 0 10px 28px rgba(8, 38, 61, 0.08);
+        }
+
+        .stTextInput > div > div,
+        .stNumberInput > div > div,
+        .stSelectbox > div > div,
+        .stTextArea > div > div {
+            background-color: #ffffff !important;
+            border: 1px solid #9db5c0 !important;
+            border-radius: 10px !important;
+        }
+
+        .stTextInput input,
+        .stNumberInput input,
+        .stTextArea textarea {
+            color: #102b3d !important;
+            background-color: #ffffff !important;
+            font-weight: 600 !important;
+        }
+
+        .stTextInput input::placeholder,
+        .stNumberInput input::placeholder {
+            color: #718793 !important;
+            opacity: 1 !important;
+        }
+
+        .stNumberInput input:focus,
+        .stTextInput input:focus {
+            border-color: var(--blue) !important;
+            box-shadow: 0 0 0 2px rgba(20, 121, 168, 0.16) !important;
+        }
+
+        .stButton > button,
+        .stFormSubmitButton > button {
+            min-height: 2.8rem;
+            border-radius: 10px;
+            border: 1px solid var(--navy);
+            background: var(--navy);
+            color: #ffffff !important;
+            font-weight: 700;
+            transition: all 0.18s ease;
+        }
+
+        .stButton > button:hover,
+        .stFormSubmitButton > button:hover {
+            background: var(--blue);
+            border-color: var(--blue);
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(20, 121, 168, 0.25);
+        }
+
+        [data-testid="stFormSubmitButton"] button {
+            background: linear-gradient(135deg, var(--aqua), var(--blue));
+            border: none;
+        }
+
+        .stDownloadButton > button {
+            border-radius: 10px;
+            background: var(--cream);
+            border: 1px solid var(--gold);
+            color: var(--navy) !important;
+            font-weight: 700;
+        }
+
+        .stDownloadButton > button:hover {
+            background: #fff8e8;
+            border-color: var(--gold);
+        }
+
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.45rem;
+            background: rgba(255, 255, 255, 0.75);
+            padding: 0.4rem;
+            border-radius: 12px;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 9px;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background: var(--navy) !important;
+            color: #ffffff !important;
+        }
+
+        .stExpander {
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        [data-testid="stDataFrame"] {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .stAlert {
+            border-radius: 12px;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid rgba(96, 119, 134, 0.25);
+            margin: 1.5rem 0;
+        }
+
+        .help-text {
+            color: var(--muted) !important;
+            font-size: 0.86rem;
+            margin-top: -0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .block-container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .main-title {
+                font-size: 2rem;
+            }
+
+            .metric-value {
+                font-size: 1.35rem;
+            }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# BANCO DE DADOS
+# ============================================================
+
 conn = sqlite3.connect("porto_atum.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Cria as tabelas ANTES de qualquer consulta do Pandas
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS descargas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    barco TEXT NOT NULL,
-    proprietario TEXT NOT NULL,
-    data_hora TEXT NOT NULL,
-    status TEXT DEFAULT 'Em Andamento'
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS descargas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barco TEXT NOT NULL,
+        proprietario TEXT NOT NULL,
+        data_hora TEXT NOT NULL,
+        status TEXT DEFAULT 'Em Andamento'
+    )
+    """
 )
-""")
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS pecas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_descarga INTEGER,
-    numero_peca INTEGER,
-    peso_kg REAL,
-    categoria TEXT,
-    segundo_furo INTEGER,
-    lombo INTEGER,
-    destino TEXT,
-    data_registro TEXT,
-    FOREIGN KEY(id_descarga) REFERENCES descargas(id)
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS pecas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_descarga INTEGER,
+        numero_peca INTEGER,
+        peso_kg REAL,
+        categoria TEXT,
+        segundo_furo INTEGER,
+        lombo INTEGER,
+        destino TEXT,
+        data_registro TEXT,
+        FOREIGN KEY(id_descarga) REFERENCES descargas(id)
+    )
+    """
 )
-""")
 
-# Garante que a coluna 'lombo' exista caso o banco já existisse antes
 try:
     cursor.execute("ALTER TABLE pecas ADD COLUMN lombo INTEGER DEFAULT 0")
 except sqlite3.OperationalError:
@@ -83,194 +338,542 @@ except sqlite3.OperationalError:
 conn.commit()
 
 
-# --- 5. LÓGICA DO APLICATIVO ---
+# ============================================================
+# FUNÇÕES
+# ============================================================
+
 def classificar_faixa(peso):
     if peso < 15.0:
-        return "< 15kg (Refugo/Local)"
-    elif 15.0 <= peso < 25.0:
-        return "15-24kg"
-    elif 25.0 <= peso < 40.0:
-        return "25-39kg"
-    else:
-        return "40+kg (Exportação)"
+        return "< 15 kg · Refugo/Local"
+    if peso < 25.0:
+        return "15–24 kg"
+    if peso < 40.0:
+        return "25–39 kg"
+    return "40+ kg · Exportação"
 
-st.title("🐟 NAVIMAR PESCADOS")
 
-barcos_ativos = pd.read_sql("SELECT id, barco, proprietario FROM descargas WHERE status = 'Em Andamento'", conn)
-descargas_concluidas = pd.read_sql("SELECT id, barco, proprietario, data_hora FROM descargas WHERE status = 'Concluída' ORDER BY id DESC", conn)
+def metric_card(label, value, accent="#1479a8"):
+    st.markdown(
+        f"""
+        <div class="metric-card" style="border-left-color: {accent};">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-with st.expander("⚙ Gestão de Descargas / Selecionar Barco", expanded=barcos_ativos.empty):
-    tab1, tab2, tab3 = st.tabs(["Nova Descarga", "Descargas Ativas", "Histórico Concluído"])
-    
+
+# ============================================================
+# CABEÇALHO
+# ============================================================
+
+st.markdown(
+    '<div class="main-title">🐟 NAVIMAR PESCADOS</div>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<div class="page-subtitle">Controle de descargas, pesagem e classificação de pescados.</div>',
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# CONSULTAS
+# ============================================================
+
+barcos_ativos = pd.read_sql(
+    """
+    SELECT id, barco, proprietario
+    FROM descargas
+    WHERE status = 'Em Andamento'
+    ORDER BY id DESC
+    """,
+    conn,
+)
+
+descargas_concluidas = pd.read_sql(
+    """
+    SELECT id, barco, proprietario, data_hora
+    FROM descargas
+    WHERE status = 'Concluída'
+    ORDER BY id DESC
+    """,
+    conn,
+)
+
+
+# ============================================================
+# GESTÃO DE DESCARGAS
+# ============================================================
+
+with st.expander(
+    "⚙️ Gestão de descargas e seleção de embarcação",
+    expanded=barcos_ativos.empty,
+):
+    tab1, tab2, tab3 = st.tabs(
+        ["➕ Nova descarga", "🚢 Descargas ativas", "📚 Histórico concluído"]
+    )
+
     with tab1:
-        novo_barco = st.text_input("Nome da Embarcação:")
-        proprietario = st.text_input("Armador / Proprietário:")
-        if st.button("Iniciar Descarga", use_container_width=True):
-            if novo_barco and proprietario:
+        st.markdown(
+            '<div class="section-title">Iniciar novo lote</div>',
+            unsafe_allow_html=True,
+        )
+
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            novo_barco = st.text_input(
+                "Nome da embarcação",
+                placeholder="Ex.: Navio Atlântico",
+                key="novo_barco",
+            )
+
+        with col_b:
+            proprietario = st.text_input(
+                "Armador / proprietário",
+                placeholder="Ex.: Empresa Naval Ltda.",
+                key="proprietario",
+            )
+
+        if st.button(
+            "🚀 Iniciar descarga",
+            use_container_width=True,
+            type="primary",
+        ):
+            if novo_barco.strip() and proprietario.strip():
                 cursor.execute(
-                    "INSERT INTO descargas (barco, proprietario, data_hora) VALUES (?, ?, ?)",
-                    (novo_barco, proprietario, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    """
+                    INSERT INTO descargas
+                    (barco, proprietario, data_hora)
+                    VALUES (?, ?, ?)
+                    """,
+                    (
+                        novo_barco.strip(),
+                        proprietario.strip(),
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    ),
                 )
                 conn.commit()
-                st.success("Nova descarga iniciada com sucesso!")
+                st.success("Nova descarga iniciada com sucesso.")
                 st.rerun()
             else:
-                st.warning("Por favor, preencha o nome da embarcação e o armador.")
-                
+                st.warning(
+                    "Preencha o nome da embarcação e o armador/proprietário."
+                )
+
     with tab2:
         if not barcos_ativos.empty:
-            escolha = st.selectbox(
-                "Embarcação em operação:",
-                barcos_ativos["id"],
-                format_func=lambda x: f"{barcos_ativos.loc[barcos_ativos['id']==x, 'barco'].values[0]} ({barcos_ativos.loc[barcos_ativos['id']==x, 'proprietario'].values[0]})"
+            opcoes_barcos = barcos_ativos["id"].tolist()
+
+            escolha_atual = st.session_state.get(
+                "id_descarga",
+                opcoes_barcos[0],
             )
+
+            if escolha_atual not in opcoes_barcos:
+                escolha_atual = opcoes_barcos[0]
+
+            escolha = st.selectbox(
+                "Embarcação em operação",
+                options=opcoes_barcos,
+                index=opcoes_barcos.index(escolha_atual),
+                format_func=lambda x: (
+                    f"{barcos_ativos.loc[barcos_ativos['id'] == x, 'barco'].iloc[0]}"
+                    f" · "
+                    f"{barcos_ativos.loc[barcos_ativos['id'] == x, 'proprietario'].iloc[0]}"
+                ),
+            )
+
             st.session_state["id_descarga"] = escolha
+
+            st.markdown(
+                '<span class="status-pill">● Descarga em andamento</span>',
+                unsafe_allow_html=True,
+            )
         else:
             st.info("Não existem descargas em andamento no momento.")
 
     with tab3:
         if not descargas_concluidas.empty:
-            st.dataframe(descargas_concluidas, hide_index=True, use_container_width=True)
+            st.dataframe(
+                descargas_concluidas,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "id": st.column_config.NumberColumn("ID"),
+                    "barco": "Embarcação",
+                    "proprietario": "Proprietário",
+                    "data_hora": "Início",
+                },
+            )
         else:
-            st.info("Nenhuma descarga concluída registada.")
+            st.info("Nenhuma descarga concluída registrada.")
 
 
-# --- OPERAÇÃO DA DESCARGA SELECIONADA ---
+# ============================================================
+# OPERAÇÃO DA DESCARGA
+# ============================================================
+
 if not barcos_ativos.empty:
-    id_descarga = st.session_state.get("id_descarga", barcos_ativos["id"].iloc[-1])
-    dados_barco = barcos_ativos[barcos_ativos["id"] == id_descarga].iloc[0]
+    ids_ativos = barcos_ativos["id"].tolist()
 
-    df_pecas = pd.read_sql(f"SELECT * FROM pecas WHERE id_descarga = {id_descarga} ORDER BY id DESC", conn)
+    id_descarga = st.session_state.get(
+        "id_descarga",
+        ids_ativos[0],
+    )
+
+    if id_descarga not in ids_ativos:
+        id_descarga = ids_ativos[0]
+        st.session_state["id_descarga"] = id_descarga
+
+    dados_barco = barcos_ativos[
+        barcos_ativos["id"] == id_descarga
+    ].iloc[0]
+
+    df_pecas = pd.read_sql(
+        """
+        SELECT *
+        FROM pecas
+        WHERE id_descarga = ?
+        ORDER BY id DESC
+        """,
+        conn,
+        params=(int(id_descarga),),
+    )
+
     proxima_peca = len(df_pecas) + 1
-
-    st.subheader(f"Barco: {dados_barco['barco']}")
-    col_m1, col_m2 = st.columns(2)
-    col_m1.metric("Peças Registradas", f"{len(df_pecas)}")
-    col_m2.metric("Peso Total Acumulado", f"{df_pecas['peso_kg'].sum():,.1f} kg" if not df_pecas.empty else "0.0 kg")
+    total_kg_atual = df_pecas["peso_kg"].sum() if not df_pecas.empty else 0
 
     st.markdown("---")
 
+    header_col, status_col = st.columns([3, 1])
+
+    with header_col:
+        st.markdown(
+            f'<div class="section-title">🚢 {dados_barco["barco"]}</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<div class="help-text">Armador / proprietário: {dados_barco["proprietario"]}</div>',
+            unsafe_allow_html=True,
+        )
+
+    with status_col:
+        st.markdown(
+            '<div style="text-align:right;"><span class="status-pill">● Operação ativa</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+
+    with metric_col1:
+        metric_card(
+            "Peças registradas",
+            f"{len(df_pecas):,}",
+            "#1479a8",
+        )
+
+    with metric_col2:
+        metric_card(
+            "Peso total acumulado",
+            f"{total_kg_atual:,.1f} kg",
+            "#18a6a6",
+        )
+
+    with metric_col3:
+        media_atual = (
+            total_kg_atual / len(df_pecas)
+            if not df_pecas.empty
+            else 0
+        )
+        metric_card(
+            "Média por peça",
+            f"{media_atual:,.1f} kg",
+            "#d5a94f",
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Mantém uma chave mutável para que o campo seja recriado limpo
+    # depois de cada lançamento.
     if "peso_counter" not in st.session_state:
-        st.session_state.peso_counter = 0
+        st.session_state["peso_counter"] = 0
+
     if "ultimo_destino" not in st.session_state:
-        st.session_state.ultimo_destino = "Caminhão"
+        st.session_state["ultimo_destino"] = "Caminhão"
 
-    # --- FORMULÁRIO DE ENTRADA ---
-    with st.form("form_pesagem", clear_on_submit=True):
-        st.write(f"### Peça Nº **{proxima_peca}**")
+    campo_peso_key = f"peso_input_{st.session_state['peso_counter']}"
 
+    st.markdown(
+        '<div class="input-card">',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f'<div class="section-title">⚖️ Registrar peça nº {proxima_peca}</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div class="help-text">Digite o peso e pressione Enter para salvar rapidamente. '
+        'O campo será liberado novamente para a próxima peça.</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.form(
+        f"form_pesagem_{st.session_state['peso_counter']}",
+        clear_on_submit=False,
+    ):
         peso_input = st.number_input(
-            "Peso da Peça (kg):",
+            "Peso da peça (kg)",
             min_value=0.0,
             max_value=350.0,
             value=None,
             step=0.5,
             format="%.2f",
-            key=f"peso_input_{st.session_state.peso_counter}"
+            key=campo_peso_key,
+            placeholder="Ex.: 32,50",
         )
 
         col1, col2 = st.columns(2)
+
         with col1:
-            segundo_furo = st.checkbox("🚩 2º Furo")
+            segundo_furo = st.checkbox("🚩 2º furo")
+
         with col2:
             lombo = st.checkbox("🔪 Lombo")
 
         destinos = ["Caminhão"]
-        idx_destino = destinos.index(st.session_state.ultimo_destino) if st.session_state.ultimo_destino in destinos else 0
+
         destino = st.radio(
-            "Destino imediato:",
-            destinos,
-            index=idx_destino,
-            horizontal=True
+            "Destino imediato",
+            options=destinos,
+            index=(
+                destinos.index(st.session_state["ultimo_destino"])
+                if st.session_state["ultimo_destino"] in destinos
+                else 0
+            ),
+            horizontal=True,
         )
 
-        submit = st.form_submit_button("➕ Salvar e Próxima Peça", use_container_width=True)
+        salvar = st.form_submit_button(
+            "➕ Salvar peça e liberar próximo campo",
+            use_container_width=True,
+        )
 
-        if submit:
-            if peso_input is not None and peso_input >= 5.0:
-                categoria = classificar_faixa(peso_input)
-                cursor.execute("""
-                    INSERT INTO pecas (id_descarga, numero_peca, peso_kg, categoria, segundo_furo, lombo, destino, data_registro)
+        if salvar:
+            if peso_input is None:
+                st.error("Informe o peso da peça.")
+            elif peso_input < 5.0:
+                st.error("O peso mínimo permitido é de 5,00 kg.")
+            else:
+                categoria = classificar_faixa(float(peso_input))
+
+                cursor.execute(
+                    """
+                    INSERT INTO pecas (
+                        id_descarga,
+                        numero_peca,
+                        peso_kg,
+                        categoria,
+                        segundo_furo,
+                        lombo,
+                        destino,
+                        data_registro
+                    )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    int(id_descarga),
-                    proxima_peca,
-                    peso_input,
-                    categoria,
-                    1 if segundo_furo else 0,
-                    1 if lombo else 0,
-                    destino,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ))
+                    """,
+                    (
+                        int(id_descarga),
+                        proxima_peca,
+                        float(peso_input),
+                        categoria,
+                        1 if segundo_furo else 0,
+                        1 if lombo else 0,
+                        destino,
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    ),
+                )
+
                 conn.commit()
 
-                st.session_state.ultimo_destino = destino
-                st.session_state.peso_counter += 1
+                st.session_state["ultimo_destino"] = destino
+                st.session_state["peso_counter"] += 1
 
-                st.toast(f"Peça #{proxima_peca} ({peso_input:.2f} kg) registrada!", icon="✅")
+                st.toast(
+                    f"Peça nº {proxima_peca} registrada: "
+                    f"{peso_input:.2f} kg",
+                    icon="✅",
+                )
+
                 st.rerun()
-            else:
-                st.error("Informe um peso válido (mínimo de 5.0 kg).")
 
-    # --- HISTÓRICO RECENTE ---
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ========================================================
+    # HISTÓRICO RECENTE
+    # ========================================================
+
     if not df_pecas.empty:
-        st.write("#### Últimos Lançamentos")
-        st.dataframe(
-            df_pecas[["numero_peca", "peso_kg", "categoria", "segundo_furo", "lombo", "destino"]].head(5),
-            column_config={
-                "numero_peca": "Nº",
-                "peso_kg": st.column_config.NumberColumn("Peso (kg)", format="%.2f kg"),
-                "categoria": "Peso",
-                "segundo_furo": st.column_config.CheckboxColumn("2º Furo"),
-                "lombo": st.column_config.CheckboxColumn("Lombo"),
-                "destino": "Destino"
-            },
-            hide_index=True,
-            use_container_width=True
+        st.markdown(
+            '<div class="section-title">🧾 Últimos lançamentos</div>',
+            unsafe_allow_html=True,
         )
 
-        if st.button("🗑️ Excluir Última Peça Inserida", type="secondary", use_container_width=True):
-            id_para_excluir = df_pecas.iloc[0]["id"]
-            cursor.execute("DELETE FROM pecas WHERE id = ?", (int(id_para_excluir),))
+        historico = df_pecas[
+            [
+                "numero_peca",
+                "peso_kg",
+                "categoria",
+                "segundo_furo",
+                "lombo",
+                "destino",
+            ]
+        ].head(8)
+
+        st.dataframe(
+            historico,
+            column_config={
+                "numero_peca": st.column_config.NumberColumn(
+                    "Nº",
+                    width="small",
+                ),
+                "peso_kg": st.column_config.NumberColumn(
+                    "Peso",
+                    format="%.2f kg",
+                ),
+                "categoria": st.column_config.TextColumn(
+                    "Classificação",
+                ),
+                "segundo_furo": st.column_config.CheckboxColumn(
+                    "2º furo",
+                ),
+                "lombo": st.column_config.CheckboxColumn(
+                    "Lombo",
+                ),
+                "destino": st.column_config.TextColumn(
+                    "Destino",
+                ),
+            },
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        if st.button(
+            "🗑️ Excluir última peça inserida",
+            type="secondary",
+            use_container_width=True,
+        ):
+            id_para_excluir = int(df_pecas.iloc[0]["id"])
+
+            cursor.execute(
+                "DELETE FROM pecas WHERE id = ?",
+                (id_para_excluir,),
+            )
             conn.commit()
-            st.warning(f"Peça #{df_pecas.iloc[0]['numero_peca']} removida com sucesso.")
+
+            st.warning(
+                f"Peça nº {df_pecas.iloc[0]['numero_peca']} removida."
+            )
             st.rerun()
 
         st.markdown("---")
-        st.subheader("🏁 Conclusão da Descarga")
-        
-        with st.expander("Encerrar Lote e Gerar Balanço Final"):
-            st.write(f"Confirme o fecho da descarga do lote **{dados_barco['barco']}**.")
-            
+
+        # ====================================================
+        # CONCLUSÃO DA DESCARGA
+        # ====================================================
+
+        st.markdown(
+            '<div class="section-title">🏁 Conclusão da descarga</div>',
+            unsafe_allow_html=True,
+        )
+
+        with st.expander("Encerrar lote e gerar balanço final"):
             total_kg = df_pecas["peso_kg"].sum()
             total_pecas = len(df_pecas)
-            media_kg = total_kg / total_pecas if total_pecas > 0 else 0
-            qtd_furo = df_pecas["segundo_furo"].sum()
-            qtd_lombo = df_pecas["lombo"].sum() if "lombo" in df_pecas.columns else 0
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Peças", total_pecas)
-            c2.metric("Total (kg)", f"{total_kg:,.1f} kg")
-            c3.metric("Média/Peça", f"{media_kg:,.1f} kg")
-
-            if qtd_furo > 0 or qtd_lombo > 0:
-                st.caption(f"⚠️ Peças com 2º Furo: **{qtd_furo}** | Peças como Lombo: **{qtd_lombo}**")
-
-            csv_data = df_pecas.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Descarregar Relatório (CSV)",
-                data=csv_data,
-                file_name=f"descarga_{dados_barco['barco']}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True
+            media_kg = total_kg / total_pecas if total_pecas else 0
+            qtd_furo = int(df_pecas["segundo_furo"].sum())
+            qtd_lombo = (
+                int(df_pecas["lombo"].sum())
+                if "lombo" in df_pecas.columns
+                else 0
             )
 
-            if st.button("✅ Concluir e Fechar Descarga", type="primary", use_container_width=True):
-                cursor.execute("UPDATE descargas SET status = 'Concluída' WHERE id = ?", (int(id_descarga),))
+            st.warning(
+                f"Confirme o encerramento da descarga do lote "
+                f"**{dados_barco['barco']}**."
+            )
+
+            final_col1, final_col2, final_col3 = st.columns(3)
+
+            with final_col1:
+                metric_card(
+                    "Total de peças",
+                    f"{total_pecas:,}",
+                    "#1479a8",
+                )
+
+            with final_col2:
+                metric_card(
+                    "Total de peso",
+                    f"{total_kg:,.1f} kg",
+                    "#18a6a6",
+                )
+
+            with final_col3:
+                metric_card(
+                    "Média por peça",
+                    f"{media_kg:,.1f} kg",
+                    "#d5a94f",
+                )
+
+            if qtd_furo > 0 or qtd_lombo > 0:
+                st.caption(
+                    f"🚩 Peças com 2º furo: **{qtd_furo}** · "
+                    f"🔪 Peças como lombo: **{qtd_lombo}**"
+                )
+
+            csv_data = df_pecas.to_csv(index=False).encode("utf-8")
+
+            st.download_button(
+                label="📥 Baixar relatório CSV",
+                data=csv_data,
+                file_name=(
+                    f"descarga_{dados_barco['barco']}_"
+                    f"{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+                ),
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+            if st.button(
+                "✅ Concluir e fechar descarga",
+                type="primary",
+                use_container_width=True,
+            ):
+                cursor.execute(
+                    """
+                    UPDATE descargas
+                    SET status = 'Concluída'
+                    WHERE id = ?
+                    """,
+                    (int(id_descarga),),
+                )
+
                 conn.commit()
-                st.success(f"Descarga de **{dados_barco['barco']}** finalizada e arquivada com sucesso!")
+
+                st.success(
+                    f"Descarga de **{dados_barco['barco']}** "
+                    "finalizada e arquivada com sucesso."
+                )
                 st.balloons()
                 st.rerun()
 
 else:
-    st.info("Nenhuma descarga em andamento. Abra uma nova descarga ou selecione um lote existente no menu acima.")
+    st.info(
+        "Nenhuma descarga em andamento. "
+        "Abra uma nova descarga ou selecione um lote existente."
+    )
