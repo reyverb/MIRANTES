@@ -2400,7 +2400,7 @@ def gerar_relacao_caminhao_excel(
             linha_peso,
         )
 
-        worksheet.set_print_area(
+        worksheet.print_area(
             0,
             0,
             linha_total_geral,
