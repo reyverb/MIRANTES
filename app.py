@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 from PIL import Image
 
-logo = Image.open("image_2d6b5c.png")
+logo = Image.open("logo.png")
 st.set_page_config(page_title="NAVIMAR PESCADOS", layout="centered", page_icon=logo)
 
 # --- IDENTIDADE VISUAL E CORES AQUÁTICAS ---
