@@ -4,7 +4,8 @@ import sqlite3
 from datetime import datetime
 from PIL import Image
 import os
-
+import io
+import plotly.express as px
 # --- 1. CARREGAMENTO DA IMAGEM ---
 try:
     # Ajuste do caminho da imagem para garantir que encontre estando dentro da pasta pages/
@@ -268,5 +269,153 @@ with tab_romaneio:
         data=csv_romaneio,
         file_name=f"romaneio_{df['barco'].iloc[0]}_{df['data_hora'].iloc[0][:10]}.csv",
         mime="text/csv",
+        use_container_width=True
+    )
+# ==============================================================================
+# OPÇÃO 1: GERADOR DE DASHBOARD HTML INTERATIVO (PLOTLY + CSS + FILTRO JS)
+# (Usando o backup fornecido)
+# ==============================================================================
+def gerar_dashboard_html(df_lote, df_resumo):
+    # Gráfico 1: Volume por Calibre
+    fig_calibre = px.bar(
+        df_resumo, x="calibre", y="Peso_Total_Kg", text="Pecas", color="calibre",
+        title="Volume Total por Calibre (kg) e Qtd. de Peças",
+        template="plotly_white", color_discrete_sequence=["#0284c7", "#0ea5e9", "#38bdf8", "#0369a1"]
+    )
+    fig_calibre.update_traces(texttemplate="%{y:.1f} kg (%{text} pçs)", textposition="outside")
+    fig_calibre.update_layout(showlegend=False, margin=dict(t=50, b=30, l=30, r=30))
+
+    # Gráfico 2: Distribuição por Destino
+    df_destino = df_lote.groupby("destino")["peso_kg"].sum().reset_index()
+    fig_destino = px.pie(
+        df_destino, names="destino", values="peso_kg", hole=0.45,
+        title="Divisão de Volume por Destino (kg)",
+        template="plotly_white", color_discrete_sequence=["#0f172a", "#0284c7"]
+    )
+    fig_destino.update_traces(textinfo="percent+label+value")
+    
+    # Renderização HTML
+    html_fig1 = fig_calibre.to_html(full_html=False, include_plotlyjs="cdn")
+    html_fig2 = fig_destino.to_html(full_html=False, include_plotlyjs=False)
+
+    html_completo = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head><meta charset="UTF-8"><title>Relatório - Lote</title></head>
+    <body style="font-family: sans-serif; padding: 20px;">
+        <h2>Painel Gerencial - Lote</h2>
+        <div style="display: flex; gap: 20px;">
+            <div style="width: 50%;">{html_fig1}</div>
+            <div style="width: 50%;">{html_fig2}</div>
+        </div>
+    </body>
+    </html>
+    """
+    return html_completo.encode("utf-8")
+
+
+# ==============================================================================
+# OPÇÃO 2: NOVO EXCEL EXECUTIVO - SEGUINDO MODELO ANEXADO
+# ==============================================================================
+def gerar_excel_executivo(df_lote):
+    output = io.BytesIO()
+    
+    # Extração de dados da embarcação e consolidação dos calibres
+    barco = str(df_lote["barco"].iloc[0]).upper()
+    armador = str(df_lote["armador"].iloc[0]).upper()
+    data_lote = df_lote["data_hora"].iloc[0][:10]
+    
+    # Categorização conforme layout exigido
+    kg_15_24 = df_lote[df_lote["calibre"] == "15kg a 24.9kg"]["peso_kg"].sum()
+    kg_25_39 = df_lote[df_lote["calibre"] == "25kg a 39.9kg"]["peso_kg"].sum()
+    kg_40_up = df_lote[df_lote["calibre"] == "+40kg Exportação"]["peso_kg"].sum()
+    kg_2_furo = df_lote[df_lote["segundo_furo"] == "Sim"]["peso_kg"].sum()
+    
+    # Nota: A categoria 'LOMBO' não está explícita no BI, alocada como 0, 
+    # mas ajustável caso você insira uma regra.
+    kg_lombo = df_lote[df_lote["calibre"] == "Lombo"]["peso_kg"].sum() if "Lombo" in df_lote["calibre"].values else 0
+    total_kg_geral = df_lote["peso_kg"].sum()
+    
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        workbook = writer.book
+        ws = workbook.add_worksheet("Planilha1")
+        ws.hide_gridlines(2)
+        
+        # Formatos do modelo
+        fmt_bold = workbook.add_format({"bold": True, "valign": "vcenter"})
+        fmt_cabecalho_tbl = workbook.add_format({"bold": True, "border": 1, "bg_color": "#D9D9D9", "align": "center"})
+        fmt_tbl_texto = workbook.add_format({"border": 1, "align": "center", "bold": True})
+        fmt_tbl_num = workbook.add_format({"border": 1, "align": "center", "num_format": '#,##0'})
+        fmt_tbl_moeda = workbook.add_format({"border": 1, "align": "center", "num_format": 'R$ #,##0.00'})
+        
+        # Largura das colunas
+        ws.set_column("B:B", 18)
+        ws.set_column("C:E", 14)
+        
+        # Cabeçalho da embarcação (Linhas 2 a 6)
+        ws.write("B3", "BARCO:", fmt_bold)
+        ws.write("C3", f" {barco}", fmt_bold)
+        ws.write("B4", "PROPRIETÁRIO:", fmt_bold)
+        ws.write("C4", f" {armador}", fmt_bold)
+        ws.write("B5", "COMANDANTE:", fmt_bold)
+        ws.write("C5", " ", fmt_bold)  # Para preencher à mão/posteriormente
+        ws.write("B6", "COMPRADOR:", fmt_bold)
+        ws.write("C6", " NAVIMAR PESCADOS", fmt_bold)
+        ws.write("B7", "DATA:", fmt_bold)
+        ws.write("C7", f" {data_lote}", fmt_bold)
+        
+        # Cabeçalho da Tabela (Linha 8)
+        headers = ["TIPO (ATUM)", "KG", "PREÇO (R$)", "TOTAL"]
+        for col_num, header in enumerate(headers, start=1):
+            ws.write(8, col_num, header, fmt_cabecalho_tbl)
+            
+        # Preenchimento da Tabela
+        linhas_dados = [
+            ("15KG - 24KG", kg_15_24, ""), 
+            ("25KG - 39KG", kg_25_39, ""), 
+            ("40KG ACIMA", kg_40_up, ""),
+            ("2º FURO", kg_2_furo, ""),
+            ("LOMBO", kg_lombo, "")
+        ]
+        
+        linha_atual = 9
+        for tipo, kg, preco in linhas_dados:
+            ws.write(linha_atual, 1, tipo, fmt_tbl_texto)
+            ws.write(linha_atual, 2, kg if kg > 0 else "", fmt_tbl_num)
+            ws.write(linha_atual, 3, preco, fmt_tbl_num)
+            # Fórmula Excel para calcular o total por linha se houvesse preço preenchido.
+            ws.write_formula(linha_atual, 4, f"=IF(ISBLANK(D{linha_atual + 1}), 0, C{linha_atual + 1}*D{linha_atual + 1})", fmt_tbl_num)
+            linha_atual += 1
+            
+        # Linha de TOTAL
+        ws.write(linha_atual, 1, "TOTAL", fmt_tbl_texto)
+        ws.write_formula(linha_atual, 2, f"=SUM(C10:C{linha_atual})", fmt_tbl_num)
+        ws.write(linha_atual, 3, "", fmt_tbl_num)
+        ws.write_formula(linha_atual, 4, f"=SUM(E10:E{linha_atual})", fmt_tbl_num)
+        
+    return output.getvalue()
+
+
+# --- BOTÕES DE EXPORTAÇÃO LADO A LADO ---
+st.subheader("📥 Exportação do Romaneio")
+col_btn1, col_btn2 = st.columns(2)
+
+with col_btn1:
+    html_bytes = gerar_dashboard_html(df, resumo_calibre)
+    st.download_button(
+        label="🌐 Dashboard Interativo (.HTML)",
+        data=html_bytes,
+        file_name=f"dashboard_lote.html",
+        mime="text/html",
+        use_container_width=True
+    )
+
+with col_btn2:
+    excel_bytes = gerar_excel_executivo(df)
+    st.download_button(
+        label="📊 Excel Executivo Modelo (.XLSX)",
+        data=excel_bytes,
+        file_name=f"romaneio_navimar.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
