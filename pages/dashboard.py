@@ -364,42 +364,45 @@ def gerar_excel_executivo(df_lote, precos, img_path):
         ws = workbook.add_worksheet("Planilha1")
         ws.hide_gridlines(2)
         
-        # Aumentando a altura das primeiras 5 linhas para a imagem ter um espaço grande
-        for i in range(5):
-            ws.set_row(i, 28)
+        # Aumentando a altura das primeiras linhas para a imagem se encaixar bem ao lado
+        for i in range(1, 6):
+            ws.set_row(i, 20)
             
-        # Inserir Logo no Excel com tamanho ampliado
-        try:
-            if os.path.exists(img_path):
-                # Escala bastante aumentada para cobrir o cabeçalho
-                ws.insert_image('B1', img_path, {'x_scale': 0.60, 'y_scale': 0.60, 'x_offset': 5, 'y_offset': 5})
-        except:
-            pass
-        
-        fmt_bold = workbook.add_format({"bold": True, "valign": "vcenter"})
+        fmt_bold = workbook.add_format({"bold": True, "valign": "vcenter", "font_size": 11})
         fmt_cabecalho_tbl = workbook.add_format({"bold": True, "border": 1, "bg_color": "#D9D9D9", "align": "center"})
         fmt_tbl_texto = workbook.add_format({"border": 1, "align": "center", "bold": True})
         fmt_tbl_num = workbook.add_format({"border": 1, "align": "center", "num_format": '#,##0.00'})
         fmt_tbl_moeda = workbook.add_format({"border": 1, "align": "center", "num_format": 'R$ #,##0.00'})
         
-        ws.set_column("A:A", 3) # Margem esquerda pequena
+        # Largura das colunas: A margem esquerda, B os rótulos, C os valores
+        ws.set_column("A:A", 3) 
         ws.set_column("B:B", 18)
-        ws.set_column("C:E", 16)
+        ws.set_column("C:C", 22)
+        ws.set_column("D:E", 16)
         
-        # O texto do cabeçalho agora começa na linha 7 (índice 6) para ficar abaixo da logo
-        linha_cab = 6
+        # Inserindo os textos à esquerda (Acompanhando o layout da imagem)
+        linha_cab = 1
         ws.write(linha_cab, 1, "BARCO:", fmt_bold)
-        ws.write(linha_cab, 2, f" {barco}", fmt_bold)
+        ws.write(linha_cab, 2, barco, fmt_bold)
         ws.write(linha_cab+1, 1, "PROPRIETÁRIO:", fmt_bold)
-        ws.write(linha_cab+1, 2, f" {armador}", fmt_bold)
+        ws.write(linha_cab+1, 2, armador, fmt_bold)
         ws.write(linha_cab+2, 1, "COMANDANTE:", fmt_bold)
-        ws.write(linha_cab+2, 2, " ", fmt_bold)
+        ws.write(linha_cab+2, 2, "", fmt_bold)
         ws.write(linha_cab+3, 1, "COMPRADOR:", fmt_bold)
-        ws.write(linha_cab+3, 2, " NAVIMAR PESCADOS", fmt_bold)
+        ws.write(linha_cab+3, 2, "NAVIMAR PESCADOS", fmt_bold)
         ws.write(linha_cab+4, 1, "DATA:", fmt_bold)
-        ws.write(linha_cab+4, 2, f" {data_formatada}", fmt_bold)
+        ws.write(linha_cab+4, 2, data_formatada, fmt_bold)
         
-        linha_tabela = linha_cab + 6
+        # Inserindo a Logo à direita (Coluna E, ao lado das informações)
+        try:
+            if os.path.exists(img_path):
+                # O offset afina a posição da imagem dentro da célula
+                ws.insert_image('E2', img_path, {'x_scale': 0.28, 'y_scale': 0.28, 'x_offset': 10, 'y_offset': -5})
+        except:
+            pass
+
+        # Espaçamento antes da tabela
+        linha_tabela = linha_cab + 7
         headers = ["TIPO (ATUM)", "KG", "PREÇO (R$)", "TOTAL"]
         for col_num, header in enumerate(headers, start=1):
             ws.write(linha_tabela, col_num, header, fmt_cabecalho_tbl)
