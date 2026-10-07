@@ -444,18 +444,73 @@ def ensure_lombo_column(dataframe):
         dataframe["lombo"] = "Não"
 
     return dataframe
-
-
+    
 def build_financial_dataframe(dataframe, prices):
-    # ATENÇÃO: Substitua pelo seu código original.
-    # Este é um esqueleto temporário para permitir a execução.
-    dados = {
-        "TIPO (ATUM)": ["15KG - 24KG", "TOTAL"],
-        "KG": [0.0, 0.0],
-        "PREÇO (R$)": [0.0, 0.0],
-        "TOTAL": [0.0, 0.0]
+    """
+    Constrói o dataframe financeiro (Romaneio Comercial) cruzando
+    o peso de cada categoria com os preços inseridos no ecrã.
+    """
+    df_fin = dataframe.copy()
+    
+    # Aplica a mesma regra de classificação usada na relação do camião
+    # para garantir que os totais de peso batem certo.
+    df_fin["CATEGORIA_FINANCEIRA"] = df_fin.apply(classificar_peca_relacao, axis=1)
+    
+    # Mapeamento das chaves do dicionário de preços para as categorias reais
+    mapa_precos = {
+        "15KG - 24KG": prices.get("15_24", 0.0),
+        "25KG - 39KG": prices.get("25_39", 0.0),
+        "40KG ACIMA": prices.get("40_up", 0.0),
+        "2º FURO": prices.get("furo", 0.0),
+        "LOMBO": prices.get("lombo", 0.0),
     }
-    return pd.DataFrame(dados)
+    
+    # Agrupa os pesos por categoria
+    resumo = df_fin.groupby("CATEGORIA_FINANCEIRA")["peso_kg"].sum().reset_index()
+    
+    # Ordem padrão de exibição no romaneio
+    ordem_categorias = [
+        "15KG - 24KG", 
+        "25KG - 39KG", 
+        "40KG ACIMA", 
+        "2º FURO", 
+        "LOMBO"
+    ]
+    
+    linhas = []
+    total_kg_geral = 0.0
+    total_valor_geral = 0.0
+    
+    # Constrói as linhas do romaneio
+    for cat in ordem_categorias:
+        # Extrai o peso da categoria (se existir)
+        linha_cat = resumo[resumo["CATEGORIA_FINANCEIRA"] == cat]
+        kg = float(linha_cat["peso_kg"].iloc[0]) if not linha_cat.empty else 0.0
+        
+        preco = mapa_precos[cat]
+        valor_total_linha = kg * preco
+        
+        linhas.append({
+            "TIPO (ATUM)": cat,
+            "KG": kg,
+            "PREÇO (R$)": preco,
+            "TOTAL": valor_total_linha
+        })
+        
+        total_kg_geral += kg
+        total_valor_geral += valor_total_linha
+        
+    # Adiciona a linha de totais na base da tabela
+    linhas.append({
+        "TIPO (ATUM)": "TOTAL",
+        "KG": total_kg_geral,
+        "PREÇO (R$)": 0.0, # O preço não faz sentido na linha de total
+        "TOTAL": total_valor_geral
+    })
+    
+    return pd.DataFrame(linhas)
+
+
 
 
 # ============================================================
