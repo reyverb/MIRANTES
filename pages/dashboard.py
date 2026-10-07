@@ -1403,7 +1403,7 @@ def gerar_dashboard_pdf(
             [
                 report_logo,
                 Paragraph(
-                    "<b>RELATÓRIO EXECUTIVO DE DESCARGA</b>",
+                    "<b>RELATÓRIO DE DESCARGA</b>",
                     title_style,
                 ),
             ],
