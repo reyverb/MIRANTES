@@ -2179,7 +2179,7 @@ def gerar_relacao_lombo_pdf(
     preco_str = f"R$ {preco_kg:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     pdf.setFillColor(SLATE)
     pdf.setFont("Helvetica", 11)
-    pdf.drawCentredString(box_x + box_width/2, box_y + 40, f"Preço base acordado: {preco_str} / kg")
+    pdf.drawCentredString(box_x + box_width/2, box_y + 40, f"Preço: {preco_str} / kg")
 
     # Valor Total
     valor_str = f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
