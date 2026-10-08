@@ -2259,7 +2259,6 @@ with export_col3:
         use_container_width=True,
     )
 
-
 # ============================================================
 # RELAÇÃO OPERACIONAL DA CARGA
 # ============================================================
@@ -2278,14 +2277,15 @@ st.markdown(
     <div class="summary-card">
         <p>
             Gere os relatórios em PDF para a conferência da carga e pré-venda. 
-            A listagem geral detalha os peixes; a exportação de Lombo exibe apenas o volume total bruto.
+            A listagem geral detalha os peixes; a exportação de Lombo exibe apenas o volume total e o valor.
         </p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-caminhao_col, motorista_col, comprador_col = st.columns(3)
+# Agora usamos 4 colunas para incluir o Fornecedor
+caminhao_col, motorista_col, comprador_col, fornecedor_col = st.columns(4)
 
 with caminhao_col:
     caminhao_relacao = st.text_input("Caminhão", value="", placeholder="Ex.: SCANIA")
@@ -2293,7 +2293,11 @@ with motorista_col:
     motorista_relacao = st.text_input("Motorista", value="", placeholder="Ex.: EDUARDO")
 with comprador_col:
     comprador_relacao = st.text_input("Comprador", value="NAVIMAR PESCADOS")
+with fornecedor_col:
+    # O Fornecedor assume por defeito o nome do Armador
+    fornecedor_relacao = st.text_input("Fornecedor", value=armador_nome)
 
+# PDF Geral (Continua sem o Lombo, detalhando os outros peixes)
 relacao_caminhao_pdf_bytes = gerar_relacao_caminhao_pdf(
     df_lote=df,
     logo_path=LOGO_PATH,
@@ -2306,12 +2310,15 @@ df_verificacao = preparar_relacao_caminhao(df)
 tem_lombo = (df_verificacao["CLASSIFICACAO_RELACAO"] == "LOMBO").any()
 
 if tem_lombo:
+    # PDF do Lombo puxa o preço inserido na Tabela de Preços e o novo Fornecedor
     relacao_lombo_pdf_bytes = gerar_relacao_lombo_pdf(
         df_lote=df,
         logo_path=LOGO_PATH,
         caminhao=caminhao_relacao,
         motorista=motorista_relacao,
         comprador=comprador_relacao,
+        fornecedor=fornecedor_relacao,
+        preco_kg=tabela_precos["lombo"], 
     )
     
     btn_col1, btn_col2 = st.columns(2)
@@ -2325,7 +2332,7 @@ if tem_lombo:
         )
     with btn_col2:
         st.download_button(
-            label="💛 Relação do Lombo (Apenas Total)",
+            label="Relação do Lombo (Total + Preço)",
             data=relacao_lombo_pdf_bytes,
             file_name=f"Relacao_Lombo_{barco_nome}.pdf",
             mime="application/pdf",
