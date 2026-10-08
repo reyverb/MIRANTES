@@ -411,7 +411,7 @@ st.markdown(
 
 
 # ============================================================
-# FUNÇÕES
+# FUNÇÕES GERAIS
 # ============================================================
 
 def metric_card(label, value, helper="", accent="#1479a8"):
@@ -444,83 +444,15 @@ def ensure_lombo_column(dataframe):
         dataframe["lombo"] = "Não"
 
     return dataframe
-    
-def build_financial_dataframe(dataframe, prices):
-    """
-    Constrói o dataframe financeiro (Romaneio Comercial) cruzando
-    o peso de cada categoria com os preços inseridos no ecrã.
-    """
-    df_fin = dataframe.copy()
-    
-    # Aplica a mesma regra de classificação usada na relação do camião
-    # para garantir que os totais de peso batem certo.
-    df_fin["CATEGORIA_FINANCEIRA"] = df_fin.apply(classificar_peca_relacao, axis=1)
-    
-    # Mapeamento das chaves do dicionário de preços para as categorias reais
-    mapa_precos = {
-        "15KG - 24KG": prices.get("15_24", 0.0),
-        "25KG - 39KG": prices.get("25_39", 0.0),
-        "40KG ACIMA": prices.get("40_up", 0.0),
-        "2º FURO": prices.get("furo", 0.0),
-        "LOMBO": prices.get("lombo", 0.0),
-    }
-    
-    # Agrupa os pesos por categoria
-    resumo = df_fin.groupby("CATEGORIA_FINANCEIRA")["peso_kg"].sum().reset_index()
-    
-    # Ordem padrão de exibição no romaneio
-    ordem_categorias = [
-        "15KG - 24KG", 
-        "25KG - 39KG", 
-        "40KG ACIMA", 
-        "2º FURO", 
-        "LOMBO"
-    ]
-    
-    linhas = []
-    total_kg_geral = 0.0
-    total_valor_geral = 0.0
-    
-    # Constrói as linhas do romaneio
-    for cat in ordem_categorias:
-        # Extrai o peso da categoria (se existir)
-        linha_cat = resumo[resumo["CATEGORIA_FINANCEIRA"] == cat]
-        kg = float(linha_cat["peso_kg"].iloc[0]) if not linha_cat.empty else 0.0
-        
-        preco = mapa_precos[cat]
-        valor_total_linha = kg * preco
-        
-        linhas.append({
-            "TIPO (ATUM)": cat,
-            "KG": kg,
-            "PREÇO (R$)": preco,
-            "TOTAL": valor_total_linha
-        })
-        
-        total_kg_geral += kg
-        total_valor_geral += valor_total_linha
-        
-    # Adiciona a linha de totais na base da tabela
-    linhas.append({
-        "TIPO (ATUM)": "TOTAL",
-        "KG": total_kg_geral,
-        "PREÇO (R$)": 0.0, # O preço não faz sentido na linha de total
-        "TOTAL": total_valor_geral
-    })
-    
-    return pd.DataFrame(linhas)
-
-
 
 
 # ============================================================
-# UTILITÁRIOS DE RELAÇÃO INDIVIDUAL
+# UTILITÁRIOS DE RELAÇÃO INDIVIDUAL E FINANCEIRO
 # ============================================================
 
 def formatar_numero_brasileiro(valor):
     """
-    Exemplo:
-    5165.00 -> 5.165,00
+    Exemplo: 5165.00 -> 5.165,00
     """
     return (
         f"{float(valor):,.2f}"
@@ -532,13 +464,7 @@ def formatar_numero_brasileiro(valor):
 
 def classificar_peca_relacao(row):
     """
-    Classificação usada exclusivamente na Relação do Caminhão.
-
-    Prioridades:
-    1. 2º FURO
-    2. LOMBO
-    3. Categoria armazenada no banco
-    4. Faixa inferida pelo peso como contingência
+    Classificação usada na Relação do Caminhão e Financeiro.
     """
     if str(row.get("segundo_furo", "Não")).strip() == "Sim":
         return "2º FURO"
@@ -629,6 +555,64 @@ def preparar_relacao_caminhao(df_lote):
         )
         .reset_index(drop=True)
     )
+
+
+def build_financial_dataframe(dataframe, prices):
+    """
+    Constrói o dataframe financeiro (Romaneio Comercial) cruzando
+    o peso de cada categoria com os preços inseridos no ecrã.
+    """
+    df_fin = dataframe.copy()
+    
+    df_fin["CATEGORIA_FINANCEIRA"] = df_fin.apply(classificar_peca_relacao, axis=1)
+    
+    mapa_precos = {
+        "15KG - 24KG": prices.get("15_24", 0.0),
+        "25KG - 39KG": prices.get("25_39", 0.0),
+        "40KG ACIMA": prices.get("40_up", 0.0),
+        "2º FURO": prices.get("furo", 0.0),
+        "LOMBO": prices.get("lombo", 0.0),
+    }
+    
+    resumo = df_fin.groupby("CATEGORIA_FINANCEIRA")["peso_kg"].sum().reset_index()
+    
+    ordem_categorias = [
+        "15KG - 24KG", 
+        "25KG - 39KG", 
+        "40KG ACIMA", 
+        "2º FURO", 
+        "LOMBO"
+    ]
+    
+    linhas = []
+    total_kg_geral = 0.0
+    total_valor_geral = 0.0
+    
+    for cat in ordem_categorias:
+        linha_cat = resumo[resumo["CATEGORIA_FINANCEIRA"] == cat]
+        kg = float(linha_cat["peso_kg"].iloc[0]) if not linha_cat.empty else 0.0
+        
+        preco = mapa_precos[cat]
+        valor_total_linha = kg * preco
+        
+        linhas.append({
+            "TIPO (ATUM)": cat,
+            "KG": kg,
+            "PREÇO (R$)": preco,
+            "TOTAL": valor_total_linha
+        })
+        
+        total_kg_geral += kg
+        total_valor_geral += valor_total_linha
+        
+    linhas.append({
+        "TIPO (ATUM)": "TOTAL",
+        "KG": total_kg_geral,
+        "PREÇO (R$)": 0.0,
+        "TOTAL": total_valor_geral
+    })
+    
+    return pd.DataFrame(linhas)
 
 
 # ============================================================
@@ -1875,15 +1859,15 @@ def gerar_dashboard_pdf(
 # ============================================================
 
 def gerar_excel_executivo(df_lote, prices, image_path):
-    # ATENÇÃO: Substitua pelo seu código original.
-    # Este é um esqueleto temporário para permitir a execução.
+    # Se possuir a lógica real de geração de Excel executivo, insira aqui.
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         pd.DataFrame({"Aviso": ["Lógica Ausente"]}).to_excel(writer, index=False)
     return output.getvalue()
 
+
 # ============================================================
-# PDF — RELAÇÃO INDIVIDUAL DO CAMINHÃO
+# PDF — RELAÇÃO INDIVIDUAL DO CAMINHÃO (GERAL - SEM LOMBO)
 # ============================================================
 
 def gerar_relacao_caminhao_pdf(
@@ -1906,7 +1890,7 @@ def gerar_relacao_caminhao_pdf(
     SLATE = HexColor("#5B6573")
     CARD = HexColor("#FFFFFF")
     SHADOW = HexColor("#E9EDF3")
-    LIGHT = HexColor("#A3ABB7")
+    LIGHT = HexColor("#A3ABB7") 
 
     cores = {
         "15KG - 24KG": {"bg": HexColor("#85C1E9"), "fg": HexColor("#08263D")},
@@ -1927,7 +1911,8 @@ def gerar_relacao_caminhao_pdf(
 
     df_relacao = preparar_relacao_caminhao(df_lote)
 
-    ordem_categorias = ["15KG - 24KG", "25KG - 39KG", "40KG ACIMA", "2º FURO", "LOMBO"]
+    # Ordem das categorias sem LOMBO para este relatório
+    ordem_categorias = ["15KG - 24KG", "25KG - 39KG", "40KG ACIMA", "2º FURO"]
 
     MAX_LINHAS = 10
     colunas_chunks = []
@@ -1948,14 +1933,13 @@ def gerar_relacao_caminhao_pdf(
 
     total_geral = sum(sum(chunk["pesos"]) for chunk in colunas_chunks)
 
-    # Configuração do PDF (Formato Paisagem para caberem várias colunas)
+    # Configuração do PDF (Formato Paisagem)
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
     page_width, page_height = landscape(A4)
     margin = 40
 
     def draw_header(pdf_canvas, page_num):
-        # Desenhar Logo
         logo_width, logo_height = 100, 60
         pdf_canvas.setFillColor(SHADOW)
         pdf_canvas.roundRect(margin + 1.5, page_height - margin - logo_height - 2.5, logo_width, logo_height, 8, stroke=0, fill=1)
@@ -1974,27 +1958,22 @@ def gerar_relacao_caminhao_pdf(
 
         title_x = margin + logo_width + 20
 
-        # Título
         pdf_canvas.setFillColor(NAVY)
         pdf_canvas.setFont("Helvetica-Bold", 16)
         pdf_canvas.drawString(title_x, page_height - 58, "Relação Individual da Carga")
 
-        # Metadados Logísticos
         pdf_canvas.setFillColor(SLATE)
         pdf_canvas.setFont("Helvetica-Bold", 9)
         pdf_canvas.drawString(title_x, page_height - 76, f"Caminhão: {caminhao}   |   Motorista: {motorista}   |   Comprador: {comprador}")
 
-        # Metadados Origem
         pdf_canvas.drawRightString(page_width - margin, page_height - 54, f"Barco: {barco}")
         pdf_canvas.drawRightString(page_width - margin, page_height - 66, f"Armador: {armador}")
         pdf_canvas.drawRightString(page_width - margin, page_height - 78, f"Data: {data_lote}")
 
-        # Linha separadora
         pdf_canvas.setStrokeColor(METAL)
         pdf_canvas.setLineWidth(1.2)
         pdf_canvas.line(margin, page_height - 110, page_width - margin, page_height - 110)
 
-        # Rodapé com nº de página
         pdf_canvas.setFillColor(LIGHT)
         pdf_canvas.setFont("Helvetica", 7.5)
         pdf_canvas.drawCentredString(page_width / 2, 25, f"Documento gerado pelo sistema NAVIMAR PESCADOS  ·  Página {page_num}")
@@ -2010,7 +1989,6 @@ def gerar_relacao_caminhao_pdf(
     draw_header(pdf, page_num)
 
     for chunk in colunas_chunks:
-        # Se não houver espaço horizontal para a próxima coluna, cria uma nova página
         if current_x + col_width > page_width - margin:
             pdf.showPage()
             page_num += 1
@@ -2022,20 +2000,17 @@ def gerar_relacao_caminhao_pdf(
         bg_color = cores[cat]["bg"]
         fg_color = cores[cat]["fg"]
 
-        # Cabeçalho da Categoria (Topo)
         pdf.setFillColor(bg_color)
         pdf.roundRect(current_x, y_top - 20, col_width, 20, 3, stroke=0, fill=1)
         pdf.setFillColor(fg_color)
         pdf.setFont("Helvetica-Bold", 8)
         pdf.drawCentredString(current_x + col_width/2, y_top - 14, cat)
 
-        # Linhas de Pesos (10 linhas)
         current_y = y_top - 20
         pdf.setLineWidth(0.5)
         for i in range(MAX_LINHAS):
             current_y -= row_height
             
-            # Cor de fundo (Branco para itens, Cinza para slots vazios)
             pdf.setFillColor(CARD if i < len(pesos) else HexColor("#F8F9FA"))
             pdf.setStrokeColor(LINE)
             pdf.rect(current_x, current_y, col_width, row_height, stroke=1, fill=1)
@@ -2049,7 +2024,6 @@ def gerar_relacao_caminhao_pdf(
                 pdf.setFont("Helvetica-Bold", 9.5)
                 pdf.drawRightString(current_x + col_width - 6, current_y + 6, f"{pesos[i]:.2f}".replace(".", ","))
 
-        # Total da Coluna (Rodapé)
         current_y -= 22
         pdf.setFillColor(bg_color)
         pdf.roundRect(current_x, current_y, col_width, 22, 3, stroke=0, fill=1)
@@ -2080,8 +2054,126 @@ def gerar_relacao_caminhao_pdf(
 
     pdf.save()
     return buffer.getvalue()
+
+
 # ============================================================
-# EXPORTAÇÕES
+# PDF — RELAÇÃO EXCLUSIVA DO LOMBO
+# ============================================================
+
+def gerar_relacao_lombo_pdf(
+    df_lote,
+    logo_path,
+    caminhao="",
+    motorista="",
+    comprador="",
+):
+    from io import BytesIO
+    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
+
+    NAVY = HexColor("#0B2545")
+    METAL = HexColor("#4F7CAC")
+    LINE = HexColor("#E6EAF0")
+    SLATE = HexColor("#5B6573")
+    CARD = HexColor("#FFFFFF")
+    SHADOW = HexColor("#E9EDF3")
+    LIGHT = HexColor("#A3ABB7")
+    GOLD = HexColor("#D5A94F")
+    GOLD_DARK = HexColor("#4A3512")
+
+    barco = str(df_lote["barco"].iloc[0]).upper()
+    armador = str(df_lote["armador"].iloc[0]).upper()
+    data_lote = format_date(df_lote["data_hora"].iloc[0])
+
+    caminhao = str(caminhao).upper() if str(caminhao).strip() else "NÃO INFORMADO"
+    motorista = str(motorista).upper() if str(motorista).strip() else "NÃO INFORMADO"
+    comprador = str(comprador).upper() if str(comprador).strip() else "NAVIMAR PESCADOS"
+
+    df_relacao = preparar_relacao_caminhao(df_lote)
+    df_lombo = df_relacao[df_relacao["CLASSIFICACAO_RELACAO"] == "LOMBO"]
+    total_lombo = df_lombo["PESO_RELACAO"].sum()
+    total_pecas = len(df_lombo)
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
+    page_width, page_height = landscape(A4)
+    margin = 40
+
+    logo_width, logo_height = 100, 60
+    pdf.setFillColor(SHADOW)
+    pdf.roundRect(margin + 1.5, page_height - margin - logo_height - 2.5, logo_width, logo_height, 8, stroke=0, fill=1)
+    pdf.setFillColor(CARD)
+    pdf.setStrokeColor(LINE)
+    pdf.roundRect(margin, page_height - margin - logo_height, logo_width, logo_height, 8, stroke=1, fill=1)
+
+    try:
+        if Path(logo_path).exists():
+            img = ImageReader(str(logo_path))
+            pdf.drawImage(img, margin + 10, page_height - margin - logo_height + 10, width=80, height=40, preserveAspectRatio=True, mask="auto")
+    except:
+        pdf.setFillColor(NAVY)
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawCentredString(margin + logo_width/2, page_height - margin - logo_height/2 - 4, "NAVIMAR")
+
+    title_x = margin + logo_width + 20
+
+    pdf.setFillColor(NAVY)
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(title_x, page_height - 58, "Relação Exclusiva da Carga - LOMBO")
+
+    pdf.setFillColor(SLATE)
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(title_x, page_height - 76, f"Caminhão: {caminhao}   |   Motorista: {motorista}   |   Comprador: {comprador}")
+
+    pdf.drawRightString(page_width - margin, page_height - 54, f"Barco: {barco}")
+    pdf.drawRightString(page_width - margin, page_height - 66, f"Armador: {armador}")
+    pdf.drawRightString(page_width - margin, page_height - 78, f"Data: {data_lote}")
+
+    pdf.setStrokeColor(METAL)
+    pdf.setLineWidth(1.2)
+    pdf.line(margin, page_height - 110, page_width - margin, page_height - 110)
+
+    pdf.setFillColor(LIGHT)
+    pdf.setFont("Helvetica", 7.5)
+    pdf.drawCentredString(page_width / 2, 25, "Documento gerado pelo sistema NAVIMAR PESCADOS")
+
+    box_width = 340
+    box_height = 140
+    box_x = (page_width - box_width) / 2
+    box_y = (page_height - 110) / 2 - box_height / 2 + 20
+
+    pdf.setFillColor(SHADOW)
+    pdf.roundRect(box_x + 3, box_y - 3, box_width, box_height, 10, stroke=0, fill=1)
+    pdf.setFillColor(CARD)
+    pdf.setStrokeColor(LINE)
+    pdf.roundRect(box_x, box_y, box_width, box_height, 10, stroke=1, fill=1)
+
+    header_h = 35
+    pdf.setFillColor(GOLD)
+    pdf.roundRect(box_x, box_y + box_height - header_h, box_width, header_h, 10, stroke=0, fill=1)
+    pdf.rect(box_x, box_y + box_height - header_h, box_width, 10, stroke=0, fill=1) 
+
+    pdf.setFillColor(GOLD_DARK)
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawCentredString(box_x + box_width/2, box_y + box_height - 22, "CATEGORIA: LOMBO")
+
+    pdf.setFillColor(SLATE)
+    pdf.setFont("Helvetica", 12)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 65, f"Quantidade embalada: {total_pecas} peças")
+
+    peso_str = f"{total_lombo:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", ".")
+    pdf.setFillColor(NAVY)
+    pdf.setFont("Helvetica-Bold", 32)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 26, peso_str)
+
+    pdf.save()
+    return buffer.getvalue()
+
+
+# ============================================================
+# EXPORTAÇÕES EXECUTIVAS
 # ============================================================
 
 st.markdown("---")
@@ -2147,15 +2239,17 @@ with export_col3:
         mime="text/csv",
         use_container_width=True,
     )
+
+
 # ============================================================
-# RELAÇÃO INDIVIDUAL DO CAMINHÃO
+# RELAÇÃO OPERACIONAL DA CARGA
 # ============================================================
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 st.markdown(
     '<div class="section-title">'
-    '🚚 Relação individual do caminhão'
+    '🚚 Relação operacional da carga'
     '</div>',
     unsafe_allow_html=True,
 )
@@ -2164,8 +2258,8 @@ st.markdown(
     """
     <div class="summary-card">
         <p>
-            Esta exportação lista cada peixe individualmente, agrupados em blocos de 10 peças.
-            Ela serve para a conferência da carga e pré-venda antes da chegada do caminhão.
+            Gere os relatórios em PDF para a conferência da carga e pré-venda. 
+            A listagem geral detalha os peixes; a exportação de Lombo exibe apenas o volume total bruto.
         </p>
     </div>
     """,
@@ -2175,29 +2269,12 @@ st.markdown(
 caminhao_col, motorista_col, comprador_col = st.columns(3)
 
 with caminhao_col:
-    caminhao_relacao = st.text_input(
-        "Caminhão",
-        value="",
-        placeholder="Ex.: SCANIA",
-        key="relacao_caminhao",
-    )
-
+    caminhao_relacao = st.text_input("Caminhão", value="", placeholder="Ex.: SCANIA")
 with motorista_col:
-    motorista_relacao = st.text_input(
-        "Motorista",
-        value="",
-        placeholder="Ex.: EDUARDO",
-        key="relacao_motorista",
-    )
-
+    motorista_relacao = st.text_input("Motorista", value="", placeholder="Ex.: EDUARDO")
 with comprador_col:
-    comprador_relacao = st.text_input(
-        "Comprador",
-        value="NAVIMAR PESCADOS",
-        key="relacao_comprador",
-    )
+    comprador_relacao = st.text_input("Comprador", value="NAVIMAR PESCADOS")
 
-# Gera o binário apenas para o PDF
 relacao_caminhao_pdf_bytes = gerar_relacao_caminhao_pdf(
     df_lote=df,
     logo_path=LOGO_PATH,
@@ -2206,11 +2283,40 @@ relacao_caminhao_pdf_bytes = gerar_relacao_caminhao_pdf(
     comprador=comprador_relacao,
 )
 
-# Botão único que ocupa toda a largura disponível
-st.download_button(
-    label="📄 Baixar Relação do Caminhão · PDF",
-    data=relacao_caminhao_pdf_bytes,
-    file_name=f"Relacao_Caminhao_{barco_nome}.pdf",
-    mime="application/pdf",
-    use_container_width=True,
-)
+df_verificacao = preparar_relacao_caminhao(df)
+tem_lombo = (df_verificacao["CLASSIFICACAO_RELACAO"] == "LOMBO").any()
+
+if tem_lombo:
+    relacao_lombo_pdf_bytes = gerar_relacao_lombo_pdf(
+        df_lote=df,
+        logo_path=LOGO_PATH,
+        caminhao=caminhao_relacao,
+        motorista=motorista_relacao,
+        comprador=comprador_relacao,
+    )
+    
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        st.download_button(
+            label="📄 Relação do Caminhão (Geral)",
+            data=relacao_caminhao_pdf_bytes,
+            file_name=f"Relacao_Geral_{barco_nome}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+    with btn_col2:
+        st.download_button(
+            label="💛 Relação do Lombo (Apenas Total)",
+            data=relacao_lombo_pdf_bytes,
+            file_name=f"Relacao_Lombo_{barco_nome}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+else:
+    st.download_button(
+        label="📄 Baixar Relação do Caminhão",
+        data=relacao_caminhao_pdf_bytes,
+        file_name=f"Relacao_Caminhao_{barco_nome}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
