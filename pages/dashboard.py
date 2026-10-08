@@ -2055,7 +2055,6 @@ def gerar_relacao_caminhao_pdf(
     pdf.save()
     return buffer.getvalue()
 
-
 # ============================================================
 # PDF — RELAÇÃO EXCLUSIVA DO LOMBO
 # ============================================================
@@ -2066,6 +2065,8 @@ def gerar_relacao_lombo_pdf(
     caminhao="",
     motorista="",
     comprador="",
+    fornecedor="",
+    preco_kg=0.0,
 ):
     from io import BytesIO
     from reportlab.lib.colors import HexColor, white
@@ -2082,25 +2083,28 @@ def gerar_relacao_lombo_pdf(
     LIGHT = HexColor("#A3ABB7")
     GOLD = HexColor("#D5A94F")
     GOLD_DARK = HexColor("#4A3512")
+    GREEN_MONEY = HexColor("#087443")
 
-    barco = str(df_lote["barco"].iloc[0]).upper()
-    armador = str(df_lote["armador"].iloc[0]).upper()
     data_lote = format_date(df_lote["data_hora"].iloc[0])
 
     caminhao = str(caminhao).upper() if str(caminhao).strip() else "NÃO INFORMADO"
     motorista = str(motorista).upper() if str(motorista).strip() else "NÃO INFORMADO"
     comprador = str(comprador).upper() if str(comprador).strip() else "NAVIMAR PESCADOS"
+    fornecedor = str(fornecedor).upper() if str(fornecedor).strip() else "NÃO INFORMADO"
 
     df_relacao = preparar_relacao_caminhao(df_lote)
     df_lombo = df_relacao[df_relacao["CLASSIFICACAO_RELACAO"] == "LOMBO"]
-    total_lombo = df_lombo["PESO_RELACAO"].sum()
+    
+    total_lombo = float(df_lombo["PESO_RELACAO"].sum())
     total_pecas = len(df_lombo)
+    valor_total = total_lombo * float(preco_kg)
 
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
     page_width, page_height = landscape(A4)
     margin = 40
 
+    # 1. Cabeçalho Padrão Navimar
     logo_width, logo_height = 100, 60
     pdf.setFillColor(SHADOW)
     pdf.roundRect(margin + 1.5, page_height - margin - logo_height - 2.5, logo_width, logo_height, 8, stroke=0, fill=1)
@@ -2127,9 +2131,9 @@ def gerar_relacao_lombo_pdf(
     pdf.setFont("Helvetica-Bold", 9)
     pdf.drawString(title_x, page_height - 76, f"Caminhão: {caminhao}   |   Motorista: {motorista}   |   Comprador: {comprador}")
 
-    pdf.drawRightString(page_width - margin, page_height - 54, f"Barco: {barco}")
-    pdf.drawRightString(page_width - margin, page_height - 66, f"Armador: {armador}")
-    pdf.drawRightString(page_width - margin, page_height - 78, f"Data: {data_lote}")
+    # Exibe apenas Fornecedor e Data à direita (removidos barco e armador)
+    pdf.drawRightString(page_width - margin, page_height - 54, f"Fornecedor: {fornecedor}")
+    pdf.drawRightString(page_width - margin, page_height - 68, f"Data: {data_lote}")
 
     pdf.setStrokeColor(METAL)
     pdf.setLineWidth(1.2)
@@ -2139,8 +2143,9 @@ def gerar_relacao_lombo_pdf(
     pdf.setFont("Helvetica", 7.5)
     pdf.drawCentredString(page_width / 2, 25, "Documento gerado pelo sistema NAVIMAR PESCADOS")
 
-    box_width = 340
-    box_height = 140
+    # 2. Cartão de Resumo Centralizado (aumentado para caber o valor financeiro)
+    box_width = 360
+    box_height = 170
     box_x = (page_width - box_width) / 2
     box_y = (page_height - 110) / 2 - box_height / 2 + 20
 
@@ -2159,14 +2164,28 @@ def gerar_relacao_lombo_pdf(
     pdf.setFont("Helvetica-Bold", 12)
     pdf.drawCentredString(box_x + box_width/2, box_y + box_height - 22, "CATEGORIA: LOMBO")
 
+    # Quantidade de Peças
     pdf.setFillColor(SLATE)
-    pdf.setFont("Helvetica", 12)
-    pdf.drawCentredString(box_x + box_width/2, box_y + 65, f"Quantidade embalada: {total_pecas} peças")
+    pdf.setFont("Helvetica", 11)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 100, f"Quantidade embalada: {total_pecas} peças")
 
+    # Peso Total
     peso_str = f"{total_lombo:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", ".")
     pdf.setFillColor(NAVY)
     pdf.setFont("Helvetica-Bold", 32)
-    pdf.drawCentredString(box_x + box_width/2, box_y + 26, peso_str)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 64, peso_str)
+
+    # Preço Base
+    preco_str = f"R$ {preco_kg:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    pdf.setFillColor(SLATE)
+    pdf.setFont("Helvetica", 11)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 40, f"Preço base acordado: {preco_str} / kg")
+
+    # Valor Total
+    valor_str = f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    pdf.setFillColor(GREEN_MONEY)
+    pdf.setFont("Helvetica-Bold", 22)
+    pdf.drawCentredString(box_x + box_width/2, box_y + 14, f"Total: {valor_str}")
 
     pdf.save()
     return buffer.getvalue()
