@@ -1,83 +1,40 @@
-# 🚀 Guia de Deploy no Render (Free Tier)
+# Deploy no Render
 
-Deploy do app MIRANTES no Render com plano gratuito.
+## 1. Criar o servico
 
-## 📋 Plano Free
+1. No Render, crie um **Web Service** conectado a este repositorio.
+2. Se o Blueprint for detectado, aceite o arquivo `render.yaml`.
+3. Confirme que o build usa `pip install --no-cache-dir -r requirements.txt`.
+4. Confirme que o start command usa `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 
-- ✅ 750 horas/mês (app 24/7)
-- ✅ 512 MB RAM
-- ❌ Hiberna após 15 min inatividade (cold start ~30s)
-- ❌ Sem custom domain
+## 2. Variaveis de ambiente
 
-**Para 50 registros/mês: free tier é suficiente!**
+Cadastre no painel do Render:
 
----
+```text
+DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/postgres?sslmode=require
+ENVIRONMENT=production
+CORS_ORIGINS=https://seu-dominio.example
+```
 
-## 🛠️ Passo a Passo
+Use a URL de conexao PostgreSQL obtida no painel do Supabase. Caso a senha tenha caracteres reservados, codifique-os na URL.
 
-### 1️⃣ Criar Conta
+Nao registre segredos no GitHub, em `render.yaml`, em logs ou em documentacao publica.
 
-1. Acesse https://render.com
-2. **Get Started for Free** → **Continue with GitHub**
+## 3. Validacao
 
-### 2️⃣ Criar Web Service
+Apos o deploy, valide:
 
-1. Dashboard → **New +** → **Web Service**
-2. Conecte GitHub
-3. Selecione: **`reyverb/MIRANTES`**
+```text
+GET /health
+GET /health/database
+```
 
-### 3️⃣ Configurar
+`/health` confirma que a API iniciou. `/health/database` confirma que o Render alcança o banco. Se o segundo endpoint responder 503, revise `DATABASE_URL`, senha, SSL e a conectividade do banco.
 
-| Campo | Valor |
-|-------|-------|
-| **Name** | `mirantes-app` |
-| **Region** | Oregon, USA |
-| **Branch** | `main` |
-| **Runtime** | Python 3 |
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `streamlit run app.py --server.address 0.0.0.0 --server.port $PORT` |
-| **Instance Type** | Free |
+## 4. Operacao
 
-### 4️⃣ Variáveis de Ambiente
-
-**Advanced** → **Add Environment Variable**:
-
-| Key | Value |
-|-----|-------|
-| `PYTHON_VERSION` | `3.11.0` |
-| `SUPABASE_URL` | `https://SEU_PROJETO.supabase.co` |
-| `SUPABASE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
-
-**Onde pegar:** Supabase → Settings → API
-
-### 5️⃣ Deploy
-
-1. **Create Web Service**
-2. Aguarde build (~2-5 min)
-3. Clique na URL quando aparecer **Live**
-
----
-
-## 📁 render.yaml
-
-O arquivo [`render.yaml`](render.yaml) já está configurado com auto-deploy.
-
----
-
-## ❓ Problemas Comuns
-
-### "ModuleNotFoundError"
-Verifique `requirements.txt`: `streamlit`, `supabase`, `pandas`, `plotly`
-
-### "Credenciais não encontradas"
-Configure `SUPABASE_URL` e `SUPABASE_KEY` em **Environment**
-
-### App hiberna
-Normal no free! Dados **NÃO** se perdem (estão no Supabase) ✅
-
----
-
-## 🔗 Links
-
-- [Render Dashboard](https://dashboard.render.com)
-- [Docs Render](https://render.com/docs)
+- O Render fornece a porta atraves de `$PORT`; nao fixe uma porta propria.
+- O health check configurado e `/health` para evitar tornar a disponibilidade do processo dependente de uma verificacao de banco.
+- Faça deploy com cache limpo quando houver alteracao em `requirements.txt`.
+- Mantenha os logs sem URLs de banco, tokens ou senhas.
