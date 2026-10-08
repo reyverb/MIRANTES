@@ -2162,7 +2162,7 @@ def gerar_relacao_lombo_pdf(
 
     pdf.setFillColor(GOLD_DARK)
     pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawCentredString(box_x + box_width/2, box_y + box_height - 22, "CATEGORIA: LOMBO")
+    pdf.drawCentredString(box_x + box_width/2, box_y + box_height - 22, "ATUM TIPO: LOMBO")
 
     # Quantidade de Peças
     pdf.setFillColor(SLATE)
