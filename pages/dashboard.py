@@ -1886,6 +1886,10 @@ def gerar_excel_executivo(df_lote, prices, image_path):
 # ============================================================
 # EXCEL — RELAÇÃO INDIVIDUAL DO CAMINHÃO
 # ============================================================
+# ============================================================
+# EXCEL — RELAÇÃO INDIVIDUAL DO CAMINHÃO
+# ============================================================
+
 def gerar_relacao_caminhao_excel(
     df_lote,
     logo_path,
@@ -1894,32 +1898,22 @@ def gerar_relacao_caminhao_excel(
     comprador="",
 ):
     """
-    Gera uma planilha detalhada para pré-venda e conferência
-    da carga que seguirá no caminhão.
-
-    Cada peixe recebe a sua própria coluna, sem agregação.
+    Gera uma planilha detalhada para conferência da carga.
+    As peças são agrupadas em blocos de 10 linhas por coluna.
+    Categorias vazias não são exibidas.
     """
-
     output = io.BytesIO()
 
     # --------------------------------------------------------
     # DADOS DO LOTE
     # --------------------------------------------------------
-
     barco = str(df_lote["barco"].iloc[0]).upper()
     armador = str(df_lote["armador"].iloc[0]).upper()
-    data_lote = format_date(
-        df_lote["data_hora"].iloc[0]
-    )
+    data_lote = format_date(df_lote["data_hora"].iloc[0])
 
-    if not caminhao:
-        caminhao = "NÃO INFORMADO"
-
-    if not motorista:
-        motorista = "NÃO INFORMADO"
-
-    if not comprador:
-        comprador = "NAVIMAR PESCADOS"
+    caminhao = str(caminhao).upper() if str(caminhao).strip() else "NÃO INFORMADO"
+    motorista = str(motorista).upper() if str(motorista).strip() else "NÃO INFORMADO"
+    comprador = str(comprador).upper() if str(comprador).strip() else "NAVIMAR PESCADOS"
 
     df_relacao = preparar_relacao_caminhao(df_lote)
 
@@ -1939,29 +1933,32 @@ def gerar_relacao_caminhao_excel(
         "LOMBO": {"header": "#D5A94F", "total": "#FDF2D0", "font": "#4A3512"},
     }
 
-    colunas_pecas = []
+    # --------------------------------------------------------
+    # SEPARAÇÃO EM COLUNAS (MÁXIMO 10 LINHAS)
+    # --------------------------------------------------------
+    MAX_LINHAS = 10
+    colunas_chunks = []
 
     for categoria in ordem_categorias:
-        df_categoria = df_relacao[
-            df_relacao["CLASSIFICACAO_RELACAO"] == categoria
-        ].copy()
+        df_categoria = df_relacao[df_relacao["CLASSIFICACAO_RELACAO"] == categoria]
+        pesos = df_categoria["PESO_RELACAO"].tolist()
 
-        for _, peca in df_categoria.iterrows():
-            colunas_pecas.append(
-                {
-                    "categoria": categoria,
-                    "numero_peca": peca["NUMERO_PECA_RELACAO"],
-                    "peso": float(peca["PESO_RELACAO"]),
-                }
-            )
+        # Evita colunas em branco se a categoria não tiver peixes
+        if not pesos:
+            continue
 
-    total_colunas = len(colunas_pecas)
+        for i in range(0, len(pesos), MAX_LINHAS):
+            chunk = pesos[i : i + MAX_LINHAS]
+            colunas_chunks.append({
+                "categoria": categoria,
+                "pesos": chunk
+            })
 
-    if total_colunas == 0:
-        total_colunas = 1
-        colunas_pecas = [
-            {"categoria": "15KG - 24KG", "numero_peca": None, "peso": 0.0}
-        ]
+    # Garante que a planilha renderiza mesmo sem dados
+    if not colunas_chunks:
+        colunas_chunks = [{"categoria": "15KG - 24KG", "pesos": []}]
+
+    total_colunas = len(colunas_chunks)
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         workbook = writer.book
@@ -1975,8 +1972,12 @@ def gerar_relacao_caminhao_excel(
         worksheet.set_footer("&CDocumento gerado pelo sistema NAVIMAR PESCADOS.")
 
         # ----------------------------------------------------
-        # FORMATOS GERAIS
+        # FORMATOS
         # ----------------------------------------------------
+        fmt_title = workbook.add_format({
+            "bold": True, "font_name": "Arial", "font_size": 15,
+            "font_color": "#0B2545", "align": "left", "valign": "vcenter"
+        })
 
         fmt_label = workbook.add_format({
             "bold": True, "font_name": "Arial", "font_size": 10,
@@ -1988,14 +1989,10 @@ def gerar_relacao_caminhao_excel(
             "font_color": "#183243", "align": "left", "valign": "vcenter"
         })
 
-        fmt_title = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 15,
-            "font_color": "#0B2545", "align": "left", "valign": "vcenter"
-        })
-
         fmt_pece_header = {}
-        fmt_pece_numero = {}
         fmt_peso = {}
+        fmt_peso_vazio = {}
+        fmt_total_coluna = {}
 
         for categoria in ordem_categorias:
             cor = cores[categoria]
@@ -2003,21 +2000,37 @@ def gerar_relacao_caminhao_excel(
             fmt_pece_header[categoria] = workbook.add_format({
                 "bold": True, "font_name": "Arial", "font_size": 8,
                 "font_color": cor["font"], "bg_color": cor["header"],
-                "align": "center", "valign": "vcenter", "text_wrap": True, "border": 0
-            })
-
-            fmt_pece_numero[categoria] = workbook.add_format({
-                "font_name": "Arial", "font_size": 7, "font_color": "#607786",
-                "bg_color": "#FFFFFF", "align": "center", "valign": "vcenter",
-                "bottom": 1, "bottom_color": "#E6EAF0"
+                "align": "center", "valign": "vcenter", "text_wrap": True,
+                "border": 1, "border_color": "#FFFFFF"
             })
 
             fmt_peso[categoria] = workbook.add_format({
                 "bold": True, "font_name": "Arial", "font_size": 10,
                 "font_color": "#183243", "bg_color": "#FFFFFF",
                 "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
-                "bottom": 1, "bottom_color": "#E6EAF0"
+                "border": 1, "border_color": "#E6EAF0"
             })
+            
+            fmt_peso_vazio[categoria] = workbook.add_format({
+                "bg_color": "#F8F9FA", # Fundo cinza bem claro para o que sobrar das 10 linhas
+                "border": 1, "border_color": "#E6EAF0"
+            })
+
+            fmt_total_coluna[categoria] = workbook.add_format({
+                "bold": True, "font_name": "Arial", "font_size": 10,
+                "font_color": "#0B2545", "bg_color": cor["total"],
+                "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
+                "top": 1, "top_color": cor["header"],
+                "bottom": 1, "bottom_color": "#E6EAF0",
+                "left": 1, "right": 1, "left_color": "#E6EAF0", "right_color": "#E6EAF0"
+            })
+
+        fmt_categoria_total = workbook.add_format({
+            "bold": True, "font_name": "Arial", "font_size": 9,
+            "font_color": "#0B2545", "bg_color": "#F3F7FA",
+            "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
+            "top": 1, "top_color": "#C9D9DF"
+        })
 
         fmt_total_label = workbook.add_format({
             "bold": True, "font_name": "Arial", "font_size": 10,
@@ -2031,51 +2044,53 @@ def gerar_relacao_caminhao_excel(
             "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"'
         })
 
-        fmt_categoria_total = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 9,
-            "font_color": "#0B2545", "bg_color": "#F3F7FA",
-            "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
-            "top": 1, "top_color": "#C9D9DF"
-        })
-
         # ----------------------------------------------------
-        # CONFIGURAÇÃO DE COLUNAS E LINHAS
+        # CONFIGURAÇÃO DE LARGURA E ALTURA
         # ----------------------------------------------------
-
-        worksheet.set_column(0, 0, 16)
+        worksheet.set_column(0, 0, 18)
         for col in range(1, total_colunas + 1):
-            worksheet.set_column(col, col, 12)
+            worksheet.set_column(col, col, 13)
 
-        worksheet.set_row(0, 25)
-        worksheet.set_row(1, 20)
-        worksheet.set_row(2, 20)
-        worksheet.set_row(3, 20)
-        worksheet.set_row(4, 20)
-        worksheet.set_row(5, 20)
-        worksheet.set_row(6, 20)
-        worksheet.set_row(7, 36)
-        worksheet.set_row(8, 18)
-        worksheet.set_row(9, 26)
-        worksheet.set_row(10, 12)
-        worksheet.set_row(11, 24)
-        worksheet.set_row(12, 12)
-        worksheet.set_row(13, 26)
+        worksheet.set_row(0, 25) # RELAÇÃO INDIVIDUAL DA CARGA
+        worksheet.set_row(1, 20) # CAMINHÃO
+        worksheet.set_row(2, 20) # MOTORISTA
+        worksheet.set_row(3, 20) # COMPRADOR
+        worksheet.set_row(4, 20) # DATA
+        worksheet.set_row(5, 20) # BARCO
+        worksheet.set_row(6, 20) # PROPRIETÁRIO
+        worksheet.set_row(7, 30) # CATEGORIA HEADER
+        
+        linha_inicio_pesos = 8
+        for i in range(MAX_LINHAS):
+            worksheet.set_row(linha_inicio_pesos + i, 20)
+            
+        linha_total_coluna = linha_inicio_pesos + MAX_LINHAS
+        worksheet.set_row(linha_total_coluna, 26)
+        
+        linha_espaco = linha_total_coluna + 1
+        worksheet.set_row(linha_espaco, 12)
+        
+        linha_totais_categoria = linha_espaco + 1
+        worksheet.set_row(linha_totais_categoria, 26)
+        
+        linha_espaco2 = linha_totais_categoria + 1
+        worksheet.set_row(linha_espaco2, 12)
+        
+        linha_total_geral = linha_espaco2 + 1
+        worksheet.set_row(linha_total_geral, 26)
 
         # ----------------------------------------------------
-        # CABEÇALHO
+        # CABEÇALHO DA PLANILHA
         # ----------------------------------------------------
-
-        ultima_coluna = total_colunas
-
         worksheet.merge_range(
-            0, 0, 0, min(ultima_coluna, 8),
+            0, 0, 0, min(total_colunas, 6),
             "RELAÇÃO INDIVIDUAL DA CARGA", fmt_title
         )
 
         dados_cabecalho = [
-            ("CAMINHÃO:", str(caminhao).upper()),
-            ("MOTORISTA:", str(motorista).upper()),
-            ("COMPRADOR:", str(comprador).upper()),
+            ("CAMINHÃO:", caminhao),
+            ("MOTORISTA:", motorista),
+            ("COMPRADOR:", comprador),
             ("DATA:", data_lote),
             ("BARCO:", barco),
             ("PROPRIETÁRIO:", armador),
@@ -2085,14 +2100,14 @@ def gerar_relacao_caminhao_excel(
         for label, value in dados_cabecalho:
             worksheet.write(linha_info, 0, label, fmt_label)
             worksheet.merge_range(
-                linha_info, 1, linha_info, min(ultima_coluna, 8),
+                linha_info, 1, linha_info, min(total_colunas, 6),
                 value, fmt_value
             )
             linha_info += 1
 
         try:
             if Path(logo_path).exists():
-                coluna_logo = max(1, ultima_coluna - 2)
+                coluna_logo = max(1, total_colunas - 1)
                 worksheet.insert_image(
                     0, coluna_logo, str(logo_path),
                     {"x_scale": 0.19, "y_scale": 0.19, "x_offset": 3, "y_offset": 3, "positioning": 2}
@@ -2101,45 +2116,46 @@ def gerar_relacao_caminhao_excel(
             pass
 
         # ----------------------------------------------------
-        # CABEÇALHOS DE CADA PEIXE
+        # ESCRITA DA TABELA (CABEÇALHOS E PESOS)
         # ----------------------------------------------------
-
         linha_categoria = 7
-        linha_numero = 8
-        linha_peso = 9
-
         worksheet.write(linha_categoria, 0, "CATEGORIA", fmt_label)
-        worksheet.write(linha_numero, 0, "Nº PEÇA", fmt_label)
-        worksheet.write(linha_peso, 0, "PESO", fmt_label)
+        
+        # Numeração lateral de 1 a 10
+        for i in range(1, MAX_LINHAS + 1):
+            worksheet.write(linha_inicio_pesos + i - 1, 0, f"{i}º Item", fmt_label)
+            
+        worksheet.write(linha_total_coluna, 0, "TOTAL DA COLUNA", fmt_label)
 
-        for indice, item in enumerate(colunas_pecas, start=1):
-            categoria = item["categoria"]
-            numero_peca = item["numero_peca"]
-            peso = item["peso"]
+        for c_idx, chunk in enumerate(colunas_chunks, start=1):
+            cat = chunk["categoria"]
+            pesos = chunk["pesos"]
 
-            numero_texto = "-" if pd.isna(numero_peca) else f"Peça {int(numero_peca):02d}"
+            worksheet.write(linha_categoria, c_idx, cat, fmt_pece_header[cat])
 
-            worksheet.write(linha_categoria, indice, categoria, fmt_pece_header[categoria])
-            worksheet.write(linha_numero, indice, numero_texto, fmt_pece_numero[categoria])
-            worksheet.write(linha_peso, indice, peso, fmt_peso[categoria])
+            # Preenche os 10 espaços (com peso ou célula vazia formatada)
+            for r_idx in range(MAX_LINHAS):
+                if r_idx < len(pesos):
+                    worksheet.write(linha_inicio_pesos + r_idx, c_idx, pesos[r_idx], fmt_peso[cat])
+                else:
+                    worksheet.write_blank(linha_inicio_pesos + r_idx, c_idx, "", fmt_peso_vazio[cat])
+
+            worksheet.write(linha_total_coluna, c_idx, sum(pesos), fmt_total_coluna[cat])
 
         # ----------------------------------------------------
-        # TOTAIS POR CATEGORIA
+        # TOTAL POR CATEGORIA
         # ----------------------------------------------------
-
-        linha_totais_categoria = 11
-
         worksheet.write(linha_totais_categoria, 0, "TOTAL POR CATEGORIA", fmt_label)
 
         inicio_categoria = 1
 
         for categoria in ordem_categorias:
-            quantidade_categoria = sum(1 for item in colunas_pecas if item["categoria"] == categoria)
-            if quantidade_categoria == 0:
+            cols_cat = [i for i, chunk in enumerate(colunas_chunks) if chunk["categoria"] == categoria]
+            if not cols_cat:
                 continue
 
-            fim_categoria = inicio_categoria + quantidade_categoria - 1
-            total_categoria = sum(item["peso"] for item in colunas_pecas if item["categoria"] == categoria)
+            fim_categoria = inicio_categoria + len(cols_cat) - 1
+            total_categoria = sum(sum(colunas_chunks[i]["pesos"]) for i in cols_cat)
 
             if inicio_categoria == fim_categoria:
                 worksheet.write(
@@ -2147,7 +2163,8 @@ def gerar_relacao_caminhao_excel(
                 )
             else:
                 worksheet.merge_range(
-                    linha_totais_categoria, inicio_categoria, linha_totais_categoria, fim_categoria,
+                    linha_totais_categoria, inicio_categoria, 
+                    linha_totais_categoria, fim_categoria,
                     total_categoria, fmt_categoria_total
                 )
 
@@ -2156,28 +2173,23 @@ def gerar_relacao_caminhao_excel(
         # ----------------------------------------------------
         # TOTAL GERAL
         # ----------------------------------------------------
-
-        linha_total_geral = 13
-
-        total_geral = sum(item["peso"] for item in colunas_pecas)
+        total_geral = sum(sum(chunk["pesos"]) for chunk in colunas_chunks)
 
         worksheet.merge_range(
-            linha_total_geral, 0, linha_total_geral, max(0, ultima_coluna - 1),
+            linha_total_geral, 0, linha_total_geral, max(0, total_colunas - 1),
             "PESO TOTAL DA CARGA", fmt_total_label
         )
-        worksheet.write(linha_total_geral, ultima_coluna, total_geral, fmt_total_geral)
+        worksheet.write(linha_total_geral, total_colunas, total_geral, fmt_total_geral)
 
         # ----------------------------------------------------
-        # AJUSTES FINAIS DE IMPRESSÃO
+        # ÁREA DE IMPRESSÃO E FIXAÇÃO
         # ----------------------------------------------------
-
-        worksheet.freeze_panes(linha_peso + 1, 1)
-        worksheet.repeat_rows(0, linha_peso)
-        worksheet.print_area(0, 0, linha_total_geral, ultima_coluna)
+        worksheet.freeze_panes(linha_inicio_pesos, 1)
+        worksheet.repeat_rows(0, linha_categoria)
+        worksheet.print_area(0, 0, linha_total_geral, total_colunas)
         worksheet.center_horizontally()
 
     return output.getvalue()
-
 
 # ============================================================
 # EXPORTAÇÕES
