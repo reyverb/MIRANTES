@@ -1882,31 +1882,40 @@ def gerar_excel_executivo(df_lote, prices, image_path):
         pd.DataFrame({"Aviso": ["Lógica Ausente"]}).to_excel(writer, index=False)
     return output.getvalue()
 
-
 # ============================================================
-# EXCEL — RELAÇÃO INDIVIDUAL DO CAMINHÃO
-# ============================================================
-# ============================================================
-# EXCEL — RELAÇÃO INDIVIDUAL DO CAMINHÃO
+# PDF — RELAÇÃO INDIVIDUAL DO CAMINHÃO
 # ============================================================
 
-def gerar_relacao_caminhao_excel(
+def gerar_relacao_caminhao_pdf(
     df_lote,
     logo_path,
     caminhao="",
     motorista="",
     comprador="",
 ):
-    """
-    Gera uma planilha detalhada para conferência da carga.
-    As peças são agrupadas em blocos de 10 linhas por coluna.
-    Categorias vazias não são exibidas.
-    """
-    output = io.BytesIO()
+    from io import BytesIO
+    from reportlab.lib.colors import HexColor, white
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas
 
-    # --------------------------------------------------------
-    # DADOS DO LOTE
-    # --------------------------------------------------------
+    # Paleta de Cores
+    NAVY = HexColor("#0B2545")
+    METAL = HexColor("#4F7CAC")
+    LINE = HexColor("#E6EAF0")
+    SLATE = HexColor("#5B6573")
+    CARD = HexColor("#FFFFFF")
+    SHADOW = HexColor("#E9EDF3")
+
+    cores = {
+        "15KG - 24KG": {"bg": HexColor("#85C1E9"), "fg": HexColor("#08263D")},
+        "25KG - 39KG": {"bg": HexColor("#3498DB"), "fg": white},
+        "40KG ACIMA": {"bg": HexColor("#0B2545"), "fg": white},
+        "2º FURO": {"bg": HexColor("#7D3C98"), "fg": white},
+        "LOMBO": {"bg": HexColor("#D5A94F"), "fg": HexColor("#4A3512")},
+    }
+
+    # Processamento de Dados
     barco = str(df_lote["barco"].iloc[0]).upper()
     armador = str(df_lote["armador"].iloc[0]).upper()
     data_lote = format_date(df_lote["data_hora"].iloc[0])
@@ -1917,25 +1926,8 @@ def gerar_relacao_caminhao_excel(
 
     df_relacao = preparar_relacao_caminhao(df_lote)
 
-    ordem_categorias = [
-        "15KG - 24KG",
-        "25KG - 39KG",
-        "40KG ACIMA",
-        "2º FURO",
-        "LOMBO",
-    ]
+    ordem_categorias = ["15KG - 24KG", "25KG - 39KG", "40KG ACIMA", "2º FURO", "LOMBO"]
 
-    cores = {
-        "15KG - 24KG": {"header": "#85C1E9", "total": "#D6EAF8", "font": "#08263D"},
-        "25KG - 39KG": {"header": "#3498DB", "total": "#D4EAF7", "font": "#FFFFFF"},
-        "40KG ACIMA": {"header": "#0B2545", "total": "#D6E4F0", "font": "#FFFFFF"},
-        "2º FURO": {"header": "#7D3C98", "total": "#E8DAEF", "font": "#FFFFFF"},
-        "LOMBO": {"header": "#D5A94F", "total": "#FDF2D0", "font": "#4A3512"},
-    }
-
-    # --------------------------------------------------------
-    # SEPARAÇÃO EM COLUNAS (MÁXIMO 10 LINHAS)
-    # --------------------------------------------------------
     MAX_LINHAS = 10
     colunas_chunks = []
 
@@ -1943,254 +1935,150 @@ def gerar_relacao_caminhao_excel(
         df_categoria = df_relacao[df_relacao["CLASSIFICACAO_RELACAO"] == categoria]
         pesos = df_categoria["PESO_RELACAO"].tolist()
 
-        # Evita colunas em branco se a categoria não tiver peixes
         if not pesos:
             continue
 
         for i in range(0, len(pesos), MAX_LINHAS):
             chunk = pesos[i : i + MAX_LINHAS]
-            colunas_chunks.append({
-                "categoria": categoria,
-                "pesos": chunk
-            })
+            colunas_chunks.append({"categoria": categoria, "pesos": chunk})
 
-    # Garante que a planilha renderiza mesmo sem dados
     if not colunas_chunks:
         colunas_chunks = [{"categoria": "15KG - 24KG", "pesos": []}]
 
-    total_colunas = len(colunas_chunks)
+    total_geral = sum(sum(chunk["pesos"]) for chunk in colunas_chunks)
 
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        workbook = writer.book
-        worksheet = workbook.add_worksheet("Relação do Caminhão")
+    # Configuração do PDF (Formato Paisagem para caberem várias colunas)
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
+    page_width, page_height = landscape(A4)
+    margin = 40
 
-        worksheet.hide_gridlines(2)
-        worksheet.set_landscape()
-        worksheet.fit_to_pages(1, 0)
-        worksheet.set_margins(left=0.20, right=0.20, top=0.30, bottom=0.35)
-        worksheet.set_header("&L&BNAVIMAR PESCADOS&R&Relação individual da carga")
-        worksheet.set_footer("&CDocumento gerado pelo sistema NAVIMAR PESCADOS.")
-
-        # ----------------------------------------------------
-        # FORMATOS
-        # ----------------------------------------------------
-        fmt_title = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 15,
-            "font_color": "#0B2545", "align": "left", "valign": "vcenter"
-        })
-
-        fmt_label = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 10,
-            "font_color": "#0B2545", "align": "left", "valign": "vcenter"
-        })
-
-        fmt_value = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 10,
-            "font_color": "#183243", "align": "left", "valign": "vcenter"
-        })
-
-        fmt_pece_header = {}
-        fmt_peso = {}
-        fmt_peso_vazio = {}
-        fmt_total_coluna = {}
-
-        for categoria in ordem_categorias:
-            cor = cores[categoria]
-
-            fmt_pece_header[categoria] = workbook.add_format({
-                "bold": True, "font_name": "Arial", "font_size": 8,
-                "font_color": cor["font"], "bg_color": cor["header"],
-                "align": "center", "valign": "vcenter", "text_wrap": True,
-                "border": 1, "border_color": "#FFFFFF"
-            })
-
-            fmt_peso[categoria] = workbook.add_format({
-                "bold": True, "font_name": "Arial", "font_size": 10,
-                "font_color": "#183243", "bg_color": "#FFFFFF",
-                "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
-                "border": 1, "border_color": "#E6EAF0"
-            })
-            
-            fmt_peso_vazio[categoria] = workbook.add_format({
-                "bg_color": "#F8F9FA", # Fundo cinza bem claro para o que sobrar das 10 linhas
-                "border": 1, "border_color": "#E6EAF0"
-            })
-
-            fmt_total_coluna[categoria] = workbook.add_format({
-                "bold": True, "font_name": "Arial", "font_size": 10,
-                "font_color": "#0B2545", "bg_color": cor["total"],
-                "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
-                "top": 1, "top_color": cor["header"],
-                "bottom": 1, "bottom_color": "#E6EAF0",
-                "left": 1, "right": 1, "left_color": "#E6EAF0", "right_color": "#E6EAF0"
-            })
-
-        fmt_categoria_total = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 9,
-            "font_color": "#0B2545", "bg_color": "#F3F7FA",
-            "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"',
-            "top": 1, "top_color": "#C9D9DF"
-        })
-
-        fmt_total_label = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 10,
-            "font_color": "#FFFFFF", "bg_color": "#0B2545",
-            "align": "left", "valign": "vcenter"
-        })
-
-        fmt_total_geral = workbook.add_format({
-            "bold": True, "font_name": "Arial", "font_size": 10,
-            "font_color": "#FFFFFF", "bg_color": "#0B2545",
-            "align": "center", "valign": "vcenter", "num_format": '0.00 "kg"'
-        })
-
-        # ----------------------------------------------------
-        # CONFIGURAÇÃO DE LARGURA E ALTURA
-        # ----------------------------------------------------
-        worksheet.set_column(0, 0, 18)
-        for col in range(1, total_colunas + 1):
-            worksheet.set_column(col, col, 13)
-
-        worksheet.set_row(0, 25) # RELAÇÃO INDIVIDUAL DA CARGA
-        worksheet.set_row(1, 20) # CAMINHÃO
-        worksheet.set_row(2, 20) # MOTORISTA
-        worksheet.set_row(3, 20) # COMPRADOR
-        worksheet.set_row(4, 20) # DATA
-        worksheet.set_row(5, 20) # BARCO
-        worksheet.set_row(6, 20) # PROPRIETÁRIO
-        worksheet.set_row(7, 30) # CATEGORIA HEADER
-        
-        linha_inicio_pesos = 8
-        for i in range(MAX_LINHAS):
-            worksheet.set_row(linha_inicio_pesos + i, 20)
-            
-        linha_total_coluna = linha_inicio_pesos + MAX_LINHAS
-        worksheet.set_row(linha_total_coluna, 26)
-        
-        linha_espaco = linha_total_coluna + 1
-        worksheet.set_row(linha_espaco, 12)
-        
-        linha_totais_categoria = linha_espaco + 1
-        worksheet.set_row(linha_totais_categoria, 26)
-        
-        linha_espaco2 = linha_totais_categoria + 1
-        worksheet.set_row(linha_espaco2, 12)
-        
-        linha_total_geral = linha_espaco2 + 1
-        worksheet.set_row(linha_total_geral, 26)
-
-        # ----------------------------------------------------
-        # CABEÇALHO DA PLANILHA
-        # ----------------------------------------------------
-        worksheet.merge_range(
-            0, 0, 0, min(total_colunas, 6),
-            "RELAÇÃO INDIVIDUAL DA CARGA", fmt_title
-        )
-
-        dados_cabecalho = [
-            ("CAMINHÃO:", caminhao),
-            ("MOTORISTA:", motorista),
-            ("COMPRADOR:", comprador),
-            ("DATA:", data_lote),
-            ("BARCO:", barco),
-            ("PROPRIETÁRIO:", armador),
-        ]
-
-        linha_info = 1
-        for label, value in dados_cabecalho:
-            worksheet.write(linha_info, 0, label, fmt_label)
-            worksheet.merge_range(
-                linha_info, 1, linha_info, min(total_colunas, 6),
-                value, fmt_value
-            )
-            linha_info += 1
+    def draw_header(pdf_canvas, page_num):
+        # Desenhar Logo
+        logo_width, logo_height = 100, 60
+        pdf_canvas.setFillColor(SHADOW)
+        pdf_canvas.roundRect(margin + 1.5, page_height - margin - logo_height - 2.5, logo_width, logo_height, 8, stroke=0, fill=1)
+        pdf_canvas.setFillColor(CARD)
+        pdf_canvas.setStrokeColor(LINE)
+        pdf_canvas.roundRect(margin, page_height - margin - logo_height, logo_width, logo_height, 8, stroke=1, fill=1)
 
         try:
             if Path(logo_path).exists():
-                coluna_logo = max(1, total_colunas - 1)
-                worksheet.insert_image(
-                    0, coluna_logo, str(logo_path),
-                    {"x_scale": 0.19, "y_scale": 0.19, "x_offset": 3, "y_offset": 3, "positioning": 2}
-                )
-        except Exception:
-            pass
+                img = ImageReader(str(logo_path))
+                pdf_canvas.drawImage(img, margin + 10, page_height - margin - logo_height + 10, width=80, height=40, preserveAspectRatio=True, mask="auto")
+        except:
+            pdf_canvas.setFillColor(NAVY)
+            pdf_canvas.setFont("Helvetica-Bold", 12)
+            pdf_canvas.drawCentredString(margin + logo_width/2, page_height - margin - logo_height/2 - 4, "NAVIMAR")
 
-        # ----------------------------------------------------
-        # ESCRITA DA TABELA (CABEÇALHOS E PESOS)
-        # ----------------------------------------------------
-        linha_categoria = 7
-        worksheet.write(linha_categoria, 0, "CATEGORIA", fmt_label)
-        
-        # Numeração lateral de 1 a 10
-        for i in range(1, MAX_LINHAS + 1):
-            worksheet.write(linha_inicio_pesos + i - 1, 0, f"{i}º Item", fmt_label)
+        title_x = margin + logo_width + 20
+
+        # Título
+        pdf_canvas.setFillColor(NAVY)
+        pdf_canvas.setFont("Helvetica-Bold", 16)
+        pdf_canvas.drawString(title_x, page_height - 58, "Relação Individual da Carga")
+
+        # Metadados Logísticos
+        pdf_canvas.setFillColor(SLATE)
+        pdf_canvas.setFont("Helvetica-Bold", 9)
+        pdf_canvas.drawString(title_x, page_height - 76, f"Caminhão: {caminhao}   |   Motorista: {motorista}   |   Comprador: {comprador}")
+
+        # Metadados Origem
+        pdf_canvas.drawRightString(page_width - margin, page_height - 54, f"Barco: {barco}")
+        pdf_canvas.drawRightString(page_width - margin, page_height - 66, f"Armador: {armador}")
+        pdf_canvas.drawRightString(page_width - margin, page_height - 78, f"Data: {data_lote}")
+
+        # Linha separadora
+        pdf_canvas.setStrokeColor(METAL)
+        pdf_canvas.setLineWidth(1.2)
+        pdf_canvas.line(margin, page_height - 110, page_width - margin, page_height - 110)
+
+        # Rodapé com nº de página
+        pdf_canvas.setFillColor(LIGHT)
+        pdf_canvas.setFont("Helvetica", 7.5)
+        pdf_canvas.drawCentredString(page_width / 2, 25, f"Documento gerado pelo sistema NAVIMAR PESCADOS  ·  Página {page_num}")
+
+    # Variáveis de Controlo de Eixo
+    current_x = margin
+    y_top = page_height - 135
+    col_width = 82
+    col_gap = 12
+    row_height = 18
+    page_num = 1
+
+    draw_header(pdf, page_num)
+
+    for chunk in colunas_chunks:
+        # Se não houver espaço horizontal para a próxima coluna, cria uma nova página
+        if current_x + col_width > page_width - margin:
+            pdf.showPage()
+            page_num += 1
+            draw_header(pdf, page_num)
+            current_x = margin
+
+        cat = chunk["categoria"]
+        pesos = chunk["pesos"]
+        bg_color = cores[cat]["bg"]
+        fg_color = cores[cat]["fg"]
+
+        # Cabeçalho da Categoria (Topo)
+        pdf.setFillColor(bg_color)
+        pdf.roundRect(current_x, y_top - 20, col_width, 20, 3, stroke=0, fill=1)
+        pdf.setFillColor(fg_color)
+        pdf.setFont("Helvetica-Bold", 8)
+        pdf.drawCentredString(current_x + col_width/2, y_top - 14, cat)
+
+        # Linhas de Pesos (10 linhas)
+        current_y = y_top - 20
+        pdf.setLineWidth(0.5)
+        for i in range(MAX_LINHAS):
+            current_y -= row_height
             
-        worksheet.write(linha_total_coluna, 0, "TOTAL DA COLUNA", fmt_label)
+            # Cor de fundo (Branco para itens, Cinza para slots vazios)
+            pdf.setFillColor(CARD if i < len(pesos) else HexColor("#F8F9FA"))
+            pdf.setStrokeColor(LINE)
+            pdf.rect(current_x, current_y, col_width, row_height, stroke=1, fill=1)
 
-        for c_idx, chunk in enumerate(colunas_chunks, start=1):
-            cat = chunk["categoria"]
-            pesos = chunk["pesos"]
+            if i < len(pesos):
+                pdf.setFillColor(SLATE)
+                pdf.setFont("Helvetica", 7)
+                pdf.drawString(current_x + 5, current_y + 6, f"{i+1}º")
 
-            worksheet.write(linha_categoria, c_idx, cat, fmt_pece_header[cat])
+                pdf.setFillColor(NAVY)
+                pdf.setFont("Helvetica-Bold", 9.5)
+                pdf.drawRightString(current_x + col_width - 6, current_y + 6, f"{pesos[i]:.2f}".replace(".", ","))
 
-            # Preenche os 10 espaços (com peso ou célula vazia formatada)
-            for r_idx in range(MAX_LINHAS):
-                if r_idx < len(pesos):
-                    worksheet.write(linha_inicio_pesos + r_idx, c_idx, pesos[r_idx], fmt_peso[cat])
-                else:
-                    worksheet.write_blank(linha_inicio_pesos + r_idx, c_idx, "", fmt_peso_vazio[cat])
+        # Total da Coluna (Rodapé)
+        current_y -= 22
+        pdf.setFillColor(bg_color)
+        pdf.roundRect(current_x, current_y, col_width, 22, 3, stroke=0, fill=1)
+        pdf.setFillColor(fg_color)
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawCentredString(current_x + col_width/2, current_y + 7, f"{sum(pesos):.2f}".replace(".", ","))
 
-            worksheet.write(linha_total_coluna, c_idx, sum(pesos), fmt_total_coluna[cat])
+        current_x += col_width + col_gap
 
-        # ----------------------------------------------------
-        # TOTAL POR CATEGORIA
-        # ----------------------------------------------------
-        worksheet.write(linha_totais_categoria, 0, "TOTAL POR CATEGORIA", fmt_label)
+    # CAIXA DE TOTAL GERAL
+    if current_x + 160 > page_width - margin:
+        pdf.showPage()
+        page_num += 1
+        draw_header(pdf, page_num)
+        current_x = margin
 
-        inicio_categoria = 1
+    y_total_box = y_top - 20 - (MAX_LINHAS * row_height) - 22
+    pdf.setFillColor(SHADOW)
+    pdf.roundRect(current_x + 1.5, y_total_box - 2.5, 150, 42, 6, stroke=0, fill=1)
+    pdf.setFillColor(NAVY)
+    pdf.roundRect(current_x, y_total_box, 150, 42, 6, stroke=0, fill=1)
+    
+    pdf.setFillColor(white)
+    pdf.setFont("Helvetica-Bold", 8)
+    pdf.drawString(current_x + 12, y_total_box + 26, "PESO TOTAL DA CARGA")
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawRightString(current_x + 138, y_total_box + 10, f"{total_geral:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", "."))
 
-        for categoria in ordem_categorias:
-            cols_cat = [i for i, chunk in enumerate(colunas_chunks) if chunk["categoria"] == categoria]
-            if not cols_cat:
-                continue
-
-            fim_categoria = inicio_categoria + len(cols_cat) - 1
-            total_categoria = sum(sum(colunas_chunks[i]["pesos"]) for i in cols_cat)
-
-            if inicio_categoria == fim_categoria:
-                worksheet.write(
-                    linha_totais_categoria, inicio_categoria, total_categoria, fmt_categoria_total
-                )
-            else:
-                worksheet.merge_range(
-                    linha_totais_categoria, inicio_categoria, 
-                    linha_totais_categoria, fim_categoria,
-                    total_categoria, fmt_categoria_total
-                )
-
-            inicio_categoria = fim_categoria + 1
-
-        # ----------------------------------------------------
-        # TOTAL GERAL
-        # ----------------------------------------------------
-        total_geral = sum(sum(chunk["pesos"]) for chunk in colunas_chunks)
-
-        worksheet.merge_range(
-            linha_total_geral, 0, linha_total_geral, max(0, total_colunas - 1),
-            "PESO TOTAL DA CARGA", fmt_total_label
-        )
-        worksheet.write(linha_total_geral, total_colunas, total_geral, fmt_total_geral)
-
-        # ----------------------------------------------------
-        # ÁREA DE IMPRESSÃO E FIXAÇÃO
-        # ----------------------------------------------------
-        worksheet.freeze_panes(linha_inicio_pesos, 1)
-        worksheet.repeat_rows(0, linha_categoria)
-        worksheet.print_area(0, 0, linha_total_geral, total_colunas)
-        worksheet.center_horizontally()
-
-    return output.getvalue()
-
+    pdf.save()
+    return buffer.getvalue()
 # ============================================================
 # EXPORTAÇÕES
 # ============================================================
