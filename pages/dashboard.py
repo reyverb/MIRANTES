@@ -2167,7 +2167,7 @@ def gerar_relacao_lombo_pdf(
     # Quantidade de Peças
     pdf.setFillColor(SLATE)
     pdf.setFont("Helvetica", 11)
-    pdf.drawCentredString(box_x + box_width/2, box_y + 100, f"Quantidade embalada: {total_pecas} peças")
+    pdf.drawCentredString(box_x + box_width/2, box_y + 100, f"Quantidade de Peças: {total_pecas} peças")
 
     # Peso Total
     peso_str = f"{total_lombo:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", ".")
