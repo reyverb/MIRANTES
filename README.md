@@ -1,43 +1,7 @@
-# MIRANTES API
+# NAVIMAR PESCADOS — aplicação operacional
 
-Backend Python para deploy no Render e persistencia de dados no PostgreSQL do Supabase.
+FastAPI serve a interface em `/` e a API em `/docs`, com persistência no PostgreSQL do Supabase via `DATABASE_URL` no Render.
 
-## Objetivo
+A nomenclatura de banco segue `app.txt`: `descargas(id, barco, proprietario, data_hora, status)` e `pecas(id, id_descarga, numero_peca, peso_kg, categoria, segundo_furo, lombo, destino, data_registro)`.
 
-Este repositorio contem somente a API e a camada de dados. Ele nao inclui Streamlit, paginas de interface ou configuracoes de interface.
-
-## Requisitos
-
-- Python 3.11 ou superior
-- Uma instancia PostgreSQL no Supabase
-- Variavel `DATABASE_URL`
-
-## Execucao local
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload
-```
-
-No Windows, ative o ambiente com `.venv\\Scripts\\activate`.
-
-## Endpoints iniciais
-
-- `GET /`: estado basico do servico
-- `GET /health`: health check do processo
-- `GET /health/database`: verifica a conexao PostgreSQL
-
-## Deploy
-
-O arquivo `render.yaml` configura um Render Web Service que executa:
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-Configure `DATABASE_URL` e `CORS_ORIGINS` no painel do Render. Nunca inclua chaves reais ou URLs com senha em commits.
-
-Leia `DEPLOY_RENDER.md` e `CONFIGURACAO_SUPABASE.md` antes de publicar.
+A migration `database/migrations/001_operational_schema.sql` é manual; compare e faça backup do banco Supabase existente antes de executá-la. Ela não roda durante startup.
