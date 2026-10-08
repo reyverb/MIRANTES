@@ -1906,6 +1906,7 @@ def gerar_relacao_caminhao_pdf(
     SLATE = HexColor("#5B6573")
     CARD = HexColor("#FFFFFF")
     SHADOW = HexColor("#E9EDF3")
+    LIGHT = HexColor("#A3ABB7")
 
     cores = {
         "15KG - 24KG": {"bg": HexColor("#85C1E9"), "fg": HexColor("#08263D")},
