@@ -1,40 +1,9 @@
-# Deploy no Render
+# Deploy e configuração Render
 
-## 1. Criar o servico
+O serviço continua usando a variável secreta existente `DATABASE_URL`. Build: `pip install --no-cache-dir -r requirements.txt`. Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 
-1. No Render, crie um **Web Service** conectado a este repositorio.
-2. Se o Blueprint for detectado, aceite o arquivo `render.yaml`.
-3. Confirme que o build usa `pip install --no-cache-dir -r requirements.txt`.
-4. Confirme que o start command usa `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+Configure o schema de negócio manualmente no Supabase executando `database/migrations/001_operational_schema.sql` após revisar. Não execute o mesmo schema cegamente num projeto que já contém dados ou tabelas antigas; primeiro faça backup e compare colunas/tipos.
 
-## 2. Variaveis de ambiente
+Depois do deploy: abra `/` para interface operacional; `/docs` para API; `/health` e `/health/database` para checks. Todos os registros ficam em Supabase, então suspensão/redeploy do Render não apaga descargas e peças. Estado da página/navegador não é persistência de dados.
 
-Cadastre no painel do Render:
-
-```text
-DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/postgres?sslmode=require
-ENVIRONMENT=production
-CORS_ORIGINS=https://seu-dominio.example
-```
-
-Use a URL de conexao PostgreSQL obtida no painel do Supabase. Caso a senha tenha caracteres reservados, codifique-os na URL.
-
-Nao registre segredos no GitHub, em `render.yaml`, em logs ou em documentacao publica.
-
-## 3. Validacao
-
-Apos o deploy, valide:
-
-```text
-GET /health
-GET /health/database
-```
-
-`/health` confirma que a API iniciou. `/health/database` confirma que o Render alcança o banco. Se o segundo endpoint responder 503, revise `DATABASE_URL`, senha, SSL e a conectividade do banco.
-
-## 4. Operacao
-
-- O Render fornece a porta atraves de `$PORT`; nao fixe uma porta propria.
-- O health check configurado e `/health` para evitar tornar a disponibilidade do processo dependente de uma verificacao de banco.
-- Faça deploy com cache limpo quando houver alteracao em `requirements.txt`.
-- Mantenha os logs sem URLs de banco, tokens ou senhas.
+Defina `DATABASE_URL` somente no Environment do Render. Não grave credenciais no GitHub.

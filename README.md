@@ -1,43 +1,15 @@
-# MIRANTES API
+# NAVIMAR PESCADOS — aplicação operacional
 
-Backend Python para deploy no Render e persistencia de dados no PostgreSQL do Supabase.
+Aplicação web FastAPI servida pelo mesmo Render, com banco PostgreSQL persistente no Supabase. A interface abre em `/`; a API documentada fica em `/docs`.
 
-## Objetivo
+## Funcionalidades
+- Criar, listar, operar e concluir descargas.
+- Registrar peças (5 a 350 kg), classificação automática, 2º furo, lombo e destino.
+- Indicadores por lote, histórico, fechamento comercial, CSV e PDF.
+- Persistência exclusivamente PostgreSQL/Supabase. O Render não guarda SQLite nem arquivos de dados locais.
 
-Este repositorio contem somente a API e a camada de dados. Ele nao inclui Streamlit, paginas de interface ou configuracoes de interface.
+## Schema Supabase
+Revise `database/migrations/001_operational_schema.sql` e execute manualmente no SQL Editor do Supabase uma vez. A aplicação não cria nem altera tabelas automaticamente.
 
-## Requisitos
-
-- Python 3.11 ou superior
-- Uma instancia PostgreSQL no Supabase
-- Variavel `DATABASE_URL`
-
-## Execucao local
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload
-```
-
-No Windows, ative o ambiente com `.venv\\Scripts\\activate`.
-
-## Endpoints iniciais
-
-- `GET /`: estado basico do servico
-- `GET /health`: health check do processo
-- `GET /health/database`: verifica a conexao PostgreSQL
-
-## Deploy
-
-O arquivo `render.yaml` configura um Render Web Service que executa:
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
-Configure `DATABASE_URL` e `CORS_ORIGINS` no painel do Render. Nunca inclua chaves reais ou URLs com senha em commits.
-
-Leia `DEPLOY_RENDER.md` e `CONFIGURACAO_SUPABASE.md` antes de publicar.
+## Ambiente local
+Defina `DATABASE_URL` e instale `requirements.txt`; execute `uvicorn app.main:app --reload`.

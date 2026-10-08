@@ -1,26 +1,11 @@
-# Configuracao do Supabase
+# Supabase para NAVIMAR PESCADOS
 
-## Banco PostgreSQL
+A aplicação conecta ao PostgreSQL por SQLAlchemy usando `DATABASE_URL` configurada no Render. Prefira connection string Session Pooler do Supabase adequada a backend persistente IPv4. Use SSL e mantenha a senha codificada na URL se contiver caracteres reservados.
 
-1. Crie ou selecione o projeto no Supabase.
-2. Execute o conteudo de `database/schema.sql` no SQL Editor do Supabase, depois de revisar o schema.
-3. Obtenha a URL de conexao PostgreSQL apropriada para uma aplicacao hospedada externamente.
-4. Guarde essa URL somente como `DATABASE_URL` no Render.
+## Schema
 
-Formato esperado pela aplicacao:
+Antes de executar SQL em banco com dados, faça backup e inspecione tabelas. A migration `database/migrations/001_operational_schema.sql` cria `descargas` e `pecas`, com as colunas esperadas pelo app antigo. Revise-a e execute manualmente no SQL Editor. O serviço não executa DDL ao iniciar.
 
-```text
-postgresql+psycopg2://USER:PASSWORD@HOST:5432/postgres?sslmode=require
-```
+## Segurança
 
-## Seguranca
-
-- Nao envie `DATABASE_URL`, senha, `service_role` ou outras chaves para o GitHub.
-- Nao entregue chaves com privilegios administrativos a clientes web ou aplicativos externos.
-- Use consultas parametrizadas e valide autorizacao no backend antes de ler ou alterar dados.
-- Aplique constraints, indices e chaves estrangeiras no banco.
-- Se usar Row Level Security, defina politicas explicitas e teste cada papel de acesso.
-
-## Uso do SDK
-
-A API usa SQLAlchemy para PostgreSQL. Adicione o SDK do Supabase apenas quando for necessario usar recursos como Auth, Storage ou Realtime. Caso seja adicionado, mantenha as chaves no Render e limite a chave `service_role` ao backend.
+A aplicação usa conexão direta PostgreSQL server-side; nunca exponha `DATABASE_URL` no browser. Não use chaves Supabase no JavaScript nem habilite acesso público irrestrito. Planeje autenticação e autorização antes de disponibilizar o endereço publicamente.
