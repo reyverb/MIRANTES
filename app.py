@@ -8,7 +8,7 @@ from PIL import Image
 # ============================================================
 # CONEXÃO COM O BANCO (SUPABASE / POSTGRESQL)
 # ============================================================
-from banco import conn, cursor, consultar
+from utils.database import conn, cursor, consultar
 
 # ============================================================
 # CONFIGURAÇÃO DE CAMINHOS
