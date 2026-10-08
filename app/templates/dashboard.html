@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard interativo — NAVIMAR PESCADOS</title>
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<main class="shell">
+<header class="page-header">
+<div>
+<p class="eyebrow">NAVIMAR PESCADOS</p>
+<h1>Dashboard interativo</h1>
+<p class="subtitle">Acompanhe a descarga, produção, destinos e classificação comercial em tempo real.</p>
+</div>
+<div class="header-actions">
+<a class="btn ghost" href="/">Voltar</a>
+<button class="btn primary" id="refresh">Atualizar</button>
+</div>
+</header>
+<section class="download-card">
+<div>
+<p class="eyebrow">Descarga selecionada</p>
+<h2 id="boat">Carregando…</h2>
+<p id="owner"></p>
+</div>
+<div class="status-pill" id="status">—</div>
+</section>
+<section class="kpis">
+<article class="kpi blue"><span>Peso total</span><strong id="kpi-total">—</strong><small>Volume registrado</small></article>
+<article class="kpi aqua"><span>Peças</span><strong id="kpi-pieces">—</strong><small>Peças lançadas</small></article>
+<article class="kpi gold"><span>Média por peça</span><strong id="kpi-average">—</strong><small>Peso médio</small></article>
+<article class="kpi green"><span>Exportação</span><strong id="kpi-export">—</strong><small id="kpi-export-helper">Acima de 40 kg</small></article>
+<article class="kpi purple"><span>2 furos</span><strong id="kpi-holes">—</strong><small id="kpi-holes-helper">Peças selecionadas</small></article>
+<article class="kpi navy"><span>Lombo</span><strong id="kpi-loins">—</strong><small>Peças com lombo</small></article>
+</section>
+<nav class="tabs">
+<button class="tab active" data-tab="overview">Visão geral</button>
+<button class="tab" data-tab="pieces">Peças</button>
+<button class="tab" data-tab="categories">Fechamento</button>
+</nav>
+<section class="panel active" id="overview">
+<div class="charts">
+<article class="card"><h3>Evolução peça a peça</h3><canvas id="evolution-chart"></canvas></article>
+<article class="card"><h3>Distribuição por destino</h3><canvas id="destination-chart"></canvas></article>
+</div>
+</section>
+<section class="panel" id="pieces">
+<article class="card">
+<div class="filters">
+<label>Faixa de peso<select id="weight-filter"><option value="">Todas</option></select></label>
+<label>Destino<select id="destination-filter"><option value="">Todos</option></select></label>
+</div>
+<div class="table-wrap">
+<table><thead><tr><th>Nº</th><th>Peso</th><th>Classificação</th><th>2 furo</th><th>Lombo</th><th>Destino</th><th>Registro</th></tr></thead><tbody id="pieces-body"></tbody></table>
+</div>
+</article>
+</section>
+<section class="panel" id="categories">
+<article class="card">
+<h3>Fechamento por categoria</h3>
+<div class="table-wrap">
+<table><thead><tr><th>Categoria</th><th>Peças</th><th>Peso total</th><th>Com 2 furo</th><th>Com lombo</th></tr></thead><tbody id="categories-body"></tbody></table>
+</div>
+</article>
+</section>
+</main>
+<script>window.DOWNLOAD_ID = {{ download_id }};</script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>
