@@ -2146,8 +2146,6 @@ with export_col3:
         mime="text/csv",
         use_container_width=True,
     )
-
-
 # ============================================================
 # RELAÇÃO INDIVIDUAL DO CAMINHÃO
 # ============================================================
@@ -2165,10 +2163,8 @@ st.markdown(
     """
     <div class="summary-card">
         <p>
-            Esta exportação lista cada peixe individualmente,
-            organizado por classificação e cor. Ela serve para
-            a conferência da carga e pré-venda antes da chegada
-            do caminhão ao comprador.
+            Esta exportação lista cada peixe individualmente, agrupados em blocos de 10 peças.
+            Ela serve para a conferência da carga e pré-venda antes da chegada do caminhão.
         </p>
     </div>
     """,
@@ -2200,7 +2196,8 @@ with comprador_col:
         key="relacao_comprador",
     )
 
-relacao_caminhao_bytes = gerar_relacao_caminhao_excel(
+# Gera o binário apenas para o PDF
+relacao_caminhao_pdf_bytes = gerar_relacao_caminhao_pdf(
     df_lote=df,
     logo_path=LOGO_PATH,
     caminhao=caminhao_relacao,
@@ -2208,15 +2205,11 @@ relacao_caminhao_bytes = gerar_relacao_caminhao_excel(
     comprador=comprador_relacao,
 )
 
+# Botão único que ocupa toda a largura disponível
 st.download_button(
-    label="🚚 Baixar relação individual do caminhão · XLSX",
-    data=relacao_caminhao_bytes,
-    file_name=(
-        f"Relacao_Caminhao_{barco_nome}.xlsx"
-    ),
-    mime=(
-        "application/vnd.openxmlformats-officedocument."
-        "spreadsheetml.sheet"
-    ),
+    label="📄 Baixar Relação do Caminhão · PDF",
+    data=relacao_caminhao_pdf_bytes,
+    file_name=f"Relacao_Caminhao_{barco_nome}.pdf",
+    mime="application/pdf",
     use_container_width=True,
 )
