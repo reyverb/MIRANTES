@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ titulo }} | MIRANTES</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary:#0b5d7a; --primary-dark:#08455a; --bg:#f4f7f9; --card:#fff; --text:#22303a; --muted:#667785; --border:#dbe3e8; }
+        * { box-sizing:border-box; }
+        body { margin:0; font-family:Arial,Helvetica,sans-serif; background:var(--bg); color:var(--text); }
+        .container { max-width:1200px; margin:0 auto; padding:24px; }
+        header { margin-bottom:24px; }
+        header h1 { margin:0; color:var(--primary); }
+        header p { margin:6px 0 0; color:var(--muted); }
+        .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:20px; }
+        .filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+        label { display:block; font-size:13px; font-weight:bold; margin-bottom:5px; }
+        input, select { width:100%; padding:9px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+        .actions { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+        button { border:none; border-radius:6px; padding:10px 16px; font-size:14px; cursor:pointer; }
+        .btn-primary { background:var(--primary); color:white; }
+        .btn-secondary { background:#e7edf1; color:var(--text); }
+        .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+        .metric { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; }
+        .metric span { display:block; color:var(--muted); font-size:13px; margin-bottom:6px; }
+        .metric strong { font-size:24px; color:var(--primary-dark); }
+        .charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }
+        .table-wrapper { overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; font-size:14px; }
+        th, td { padding:11px; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+        th { background:#eef3f6; color:var(--primary-dark); }
+        .empty { text-align:center; color:var(--muted); padding:24px; }
+        .pagination { display:flex; align-items:center; justify-content:space-between; margin-top:16px; flex-wrap:wrap; gap:10px; }
+        .status { padding:3px 8px; border-radius:20px; font-size:12px; background:#e7edf1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ titulo }}</h1>
+            <p>{{ subtitulo }}</p>
+        </header>
+
+        <section class="card">
+            <div class="filters">
+                <div><label for="data_inicio">Data inicial</label><input type="date" id="data_inicio"></div>
+                <div><label for="data_fim">Data final</label><input type="date" id="data_fim"></div>
+                <div><label for="embarcacao">Embarcação</label><input type="text" id="embarcacao" placeholder="Nome da embarcação"></div>
+                <div><label for="especie">Espécie</label><input type="text" id="especie" placeholder="Ex.: Atum rabilho"></div>
+                <div><label for="porto">Porto</label><input type="text" id="porto" placeholder="Porto de descarga"></div>
+                <div>
+                    <label for="status">Status</label>
+                    <select id="status">
+                        <option value="">Todos</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="validado">Validado</option>
+                        <option value="rejeitado">Rejeitado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn-primary" onclick="carregarDados(1)">Filtrar</button>
+                <button class="btn-secondary" onclick="limparFiltros()">Limpar filtros</button>
+                <button class="btn-secondary" onclick="exportarCSV()">Exportar CSV</button>
+            </div>
+        </section>
+
+        <section class="metrics">
+            <div class="metric"><span>Total de descargas</span><strong id="metrica_total">0</strong></div>
+            <div class="metric"><span>Volume total</span><strong id="metrica_peso">0 kg</strong></div>
+            <div class="metric"><span>Peso médio</span><strong id="metrica_media">0 kg</strong></div>
+        </section>
+
+        <section class="card">
+            <h2>Registros</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th><th>Embarcação</th><th>Espécie</th><th>Peso (kg)</th><th>Porto</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela_dados">
+                        <tr><td colspan="6" class="empty">Carregando registros...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <span id="informacao_paginacao"></span>
+                <div>
+                    <button class="btn-secondary" onclick="mudarPagina(-1)">Anterior</button>
+                    <button class="btn-secondary" onclick="mudarPagina(1)">Próxima</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="charts">
+            <div class="card"><h2>Volume por espécie</h2><canvas id="grafico_especies"></canvas></div>
+            <div class="card"><h2>Volume por data</h2><canvas id="grafico_datas"></canvas></div>
+        </section>
+    </div>
+
+    <script src="/static/js/data_view.js"></script>
+</body>
+</html>
