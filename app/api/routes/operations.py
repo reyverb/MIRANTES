@@ -1,8 +1,9 @@
 import csv
 import io
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from sqlalchemy import text
@@ -13,6 +14,7 @@ from app.schemas.operations import DownloadCreate, PieceCreate, ManifestRequest
 from app.services.business import classify_weight, dashboard_summary, commercial_class, manifest
 
 router = APIRouter(tags=["operations"])
+templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/descargas")
 def list_downloads(status: str | None = Query(default=None, pattern=r"^(Em Andamento|Concluída)$"), db: Session = Depends(get_db)):
@@ -113,10 +115,17 @@ def export_pdf(download_id: int, request: ManifestRequest, db: Session = Depends
     pieces=[dict(r) for r in db.execute(text("SELECT peso_kg AS weight_kg,segundo_furo AS second_hole,lombo AS loin FROM pecas WHERE id_descarga=:id"),{"id":download_id}).mappings().all()]
     sd=dashboard_summary(pieces); md=manifest(pieces,request.prices.model_dump()); buffer=io.BytesIO(); pdf=canvas.Canvas(buffer,pagesize=A4); _,height=A4; y=height-50
     pdf.setFont("Helvetica-Bold",16); pdf.drawString(40,y,"NAVIMAR PESCADOS - Relatório de descarga"); y-=30; pdf.setFont("Helvetica",10)
-    for line in [f"Barco: {dl['barco']}",f"Proprietário: {dl['proprietario']}",f"Data: {dl['data_hora']}",f"Peças: {sd['pieces']}",f"Peso total: {sd['total_kg']:.2f} kg",f"Média: {sd['average_kg']:.2f} kg",f"Valor estimado: R$ {md['total_value']:.2f}"]:
+    for line in [f"Barco: {dl['barco']}",f"Proprietário: {dl['proprietário']}",f"Data: {dl['data_hora']}",f"Peças: {sd['pieces']}",f"Peso total: {sd['total_kg']:.2f} kg",f"Média: {sd['average_kg']:.2f} kg",f"Valor estimado: R$ {md['total_value']:.2f}"]:
         pdf.drawString(40,y,line); y-=18
     y-=10; pdf.setFont("Helvetica-Bold",11); pdf.drawString(40,y,"Romaneio comercial"); y-=20; pdf.setFont("Helvetica",9)
     for item in md["items"]:
         pdf.drawString(40,y,f"{item['category']}: {item['kg']:.2f} kg x R$ {item['price_per_kg']:.2f} = R$ {item['total']:.2f}"); y-=16
     pdf.save(); buffer.seek(0)
     return StreamingResponse(buffer,media_type="application/pdf",headers={"Content-Disposition":f"attachment; filename=romaneio_{download_id}.pdf"})
+
+@router.get("/descargas/{download_id}/dashboard")
+def dashboard_page(download_id: int, request: Request, db: Session = Depends(get_db)):
+    row = db.execute(text("SELECT id FROM descargas WHERE id=:id"), {"id": download_id}).mappings().first()
+    if not row:
+        raise HTTPException(404, "Descarga não encontrada")
+    return templates.TemplateResponse(request=request, name="dashboard.html", context={"download_id": download_id})
